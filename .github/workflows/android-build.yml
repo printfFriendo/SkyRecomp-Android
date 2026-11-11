@@ -1,0 +1,90 @@
+name: Android Build
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Android APKs (arm64-v8a)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android Licenses & Install NDK
+        run: |
+          yes | sdkmanager --licenses || true
+          sdkmanager --install "ndk;28.2.13676358" "cmake;3.22.1"
+
+      - name: Generate Release Keystore
+        run: |
+          keytool -genkeypair -v \
+            -keystore android/skyrecomp-release.jks \
+            -alias skyrecomp \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass skyrecomp \
+            -keypass skyrecomp \
+            -dname "CN=SkyRecomp, OU=Gaming, O=SkyRecomp, L=Android, S=Platform, C=BR"
+
+      - name: Make Gradle Wrapper Executable
+        run: chmod +x android/gradlew
+
+      - name: Build APKs with Gradle
+        run: |
+          cd android
+          ./gradlew assembleDebug assembleRelease --stacktrace
+
+      - name: Prepare APK Artifacts
+        run: |
+          if [ -f android/app/build/outputs/apk/release/app-release.apk ]; then
+            cp android/app/build/outputs/apk/release/app-release.apk android/app/build/outputs/apk/release/SkyRecomp-release.apk
+          elif [ -f android/app/build/outputs/apk/release/app-release-unsigned.apk ]; then
+            cp android/app/build/outputs/apk/release/app-release-unsigned.apk android/app/build/outputs/apk/release/SkyRecomp-release-unsigned.apk
+          fi
+          if [ -f android/app/build/outputs/apk/debug/app-debug.apk ]; then
+            cp android/app/build/outputs/apk/debug/app-debug.apk android/app/build/outputs/apk/debug/SkyRecomp-debug.apk
+          fi
+
+      - name: Upload Debug APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SkyRecomp-android-debug
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+      - name: Upload Release APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SkyRecomp-android-release
+          path: android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
+      - name: Attach APK to GitHub Release on Tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            android/app/build/outputs/apk/release/*.apk
+            android/app/build/outputs/apk/debug/*.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

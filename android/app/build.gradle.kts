@@ -5,6 +5,7 @@ plugins {
 android {
     namespace = "com.apolinario.skyrecomp"
     compileSdk = 34
+    ndkVersion = "28.2.13676358"
 
     defaultConfig {
         applicationId = "com.apolinario.skyrecomp"
@@ -29,18 +30,23 @@ android {
         }
     }
 
-    signingConfigs {
-        create("release") {
-            storeFile = file("../skyrecomp-release.jks")
-            storePassword = "skyrecomp"
-            keyAlias = "skyrecomp"
-            keyPassword = "skyrecomp"
+    val keystoreFile = file("../skyrecomp-release.jks")
+    if (keystoreFile.exists()) {
+        signingConfigs {
+            create("release") {
+                storeFile = keystoreFile
+                storePassword = "skyrecomp"
+                keyAlias = "skyrecomp"
+                keyPassword = "skyrecomp"
+            }
         }
     }
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
+            if (keystoreFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
