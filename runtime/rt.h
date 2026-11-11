@@ -7,8 +7,14 @@
 #include "cpu.h"
 #include "platform.h"
 
+#if defined(__ANDROID__)
+#include <android/log.h>
+#define LOG(...) (fprintf(stderr, __VA_ARGS__), (void)__android_log_print(ANDROID_LOG_INFO, "SkyRecomp", __VA_ARGS__))
+#define FATAL(...) (fprintf(stderr, "FATAL: " __VA_ARGS__), (void)__android_log_print(ANDROID_LOG_FATAL, "SkyRecomp", "FATAL: " __VA_ARGS__), rt_fatal_trace())
+#else
 #define LOG(...) fprintf(stderr, __VA_ARGS__)
 #define FATAL(...) (fprintf(stderr, "FATAL: " __VA_ARGS__), rt_fatal_trace())
+#endif
 
 // ---- address space layout (guest addresses == host addresses)
 // macOS reserves 0x2_0000_0000-0x70_0000_0000, and guest addresses must fit in 39 bits, so the

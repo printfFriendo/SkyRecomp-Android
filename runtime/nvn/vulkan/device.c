@@ -252,6 +252,11 @@ static void create_device(void) {
     b->vertexPipelineStoresAndAtomics = h->vertexPipelineStoresAndAtomics;
     b->robustBufferAccess = h->robustBufferAccess;  // guest shaders index cbufs freely: keep OOB reads harmless
     b->shaderClipDistance = h->shaderClipDistance;
+    g_vk.has_depth_clamp = h->depthClamp;
+    g_vk.has_dual_src_blend = h->dualSrcBlend;
+    g_vk.has_fill_mode_non_solid = h->fillModeNonSolid;
+    g_vk.has_sampler_anisotropy = h->samplerAnisotropy;
+    g_vk.has_shader_clip_distance = h->shaderClipDistance;
     if (!h->shaderInt64) LOG("[vk] warning: no shaderInt64 (64-bit address math in shaders)\n");
     float prio = 1.0f;
     VkDeviceQueueCreateInfo qi = {.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO, .queueFamilyIndex = g_vk.qfam,
@@ -441,7 +446,7 @@ bool vk_frame_begin(const float clear[4]) {
     if (!acquire_sem[slot]) acquire_sem[slot] = binary_semaphore();
     vk_wait_seq(slot_seq[slot]);
     VkResult r = vkAcquireNextImageKHR(g_vk.dev, g_vk.swapchain, UINT64_MAX, acquire_sem[slot], VK_NULL_HANDLE, &cur_frame.image);
-    if (r == VK_ERROR_OUT_OF_DATE_KHR) {
+    if (r == VK_ERROR_OUT_OF_DATE_KHR || r == VK_SUBOPTIMAL_KHR) {
         recreate_swapchain();
         if (!g_vk.swapchain) return false;
         r = vkAcquireNextImageKHR(g_vk.dev, g_vk.swapchain, UINT64_MAX, acquire_sem[slot], VK_NULL_HANDLE, &cur_frame.image);
@@ -529,8 +534,13 @@ void vk_frame_end(const char *shot_path) {
 
 void vk_save_png(const char *path, const uint8_t *rgba, uint32_t w, uint32_t h) {
     SDL_Surface *s = SDL_CreateSurfaceFrom((int)w, (int)h, SDL_PIXELFORMAT_ABGR8888, (void *)rgba, (int)w * 4);
+#if defined(__ANDROID__)
+    if (!s || !SDL_SaveBMP(s, path)) LOG("[vk] saving %s failed: %s\n", path, SDL_GetError());
+    else LOG("[vk] saved %s (%ux%u)\n", path, w, h);
+#else
     if (!s || !SDL_SavePNG(s, path)) LOG("[vk] saving %s failed: %s\n", path, SDL_GetError());
     else LOG("[vk] saved %s (%ux%u)\n", path, w, h);
+#endif
     SDL_DestroySurface(s);
 }
 
@@ -909,6 +919,10 @@ int ui_run(void) {
             bool consumed = menu_handle_event(&e);
             input_mouse_update(window, true);
             if (consumed) continue;
+#if defined(__ANDROID__)
+            extern bool touch_overlay_handle_event(const SDL_Event *e);
+            if (touch_overlay_handle_event(&e)) continue;
+#endif
             input_handle_event(&e);
         }
         menu_apply_window_requests(window);

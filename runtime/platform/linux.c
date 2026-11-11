@@ -3,7 +3,17 @@
 #include <SDL3/SDL.h>
 #include <dlfcn.h>
 #include <errno.h>
+#if !defined(__ANDROID__)
 #include <execinfo.h>
+#else
+#include <android/log.h>
+#include <unwind.h>
+#include <sys/prctl.h>
+#include <stdarg.h>
+#if __has_include(<malloc.h>)
+#include <malloc.h>
+#endif
+#endif
 #include <fcntl.h>
 #include <pthread.h>
 #include <sched.h>
@@ -24,13 +34,36 @@
 #define MAP_FIXED_NOREPLACE 0x100000
 #endif
 
+#if defined(__ANDROID__) && defined(__aarch64__)
+#ifndef PR_SET_TAGGED_ADDR_CTRL
+#define PR_SET_TAGGED_ADDR_CTRL 55
+#define PR_TAGGED_ADDR_ENABLE (1UL << 0)
+#endif
+#ifndef M_BIONIC_SET_HEAP_TAGGING_LEVEL
+#define M_BIONIC_SET_HEAP_TAGGING_LEVEL (-201)
+#define M_HEAP_TAGGING_LEVEL_NONE 0
+#endif
+#endif
+
 // ---- guest address space
 // Everything readable/writable from the start, like macOS: the guest maps at 4K granularity, and untouched pages
 // cost nothing (MAP_NORESERVE: the 12 GB window doesn't count against overcommit).
 bool plat_reserve_guest(uint64_t lo, uint64_t hi) {
+#if defined(__ANDROID__)
+    // Strip TBI / tagged pointer bits from address (bits 56-63)
+    lo &= 0x00FFFFFFFFFFFFFFull;
+    hi &= 0x00FFFFFFFFFFFFFFull;
+#endif
     void *p = mmap((void *)(uintptr_t)lo, hi - lo, PROT_READ | PROT_WRITE,
                    MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE | MAP_FIXED_NOREPLACE, -1, 0);
-    if (p == MAP_FAILED) return false;
+    if (p == MAP_FAILED) {
+#if defined(__ANDROID__)
+        // Fallback for Android kernels that may lack MAP_FIXED_NOREPLACE or have strict ASLR
+        p = mmap((void *)(uintptr_t)lo, hi - lo, PROT_READ | PROT_WRITE,
+                 MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE | MAP_FIXED, -1, 0);
+#endif
+        if (p == MAP_FAILED) return false;
+    }
     if (p != (void *)(uintptr_t)lo) { munmap(p, hi - lo); return false; }  // (kernels before 4.17: just a hint)
     return true;
 }
@@ -79,8 +112,49 @@ void plat_thread_realtime(uint64_t period_ns) {
 // (runtime/paths.h; rt_paths_init runs later, so the same rule is applied here). Processes started by this one (the
 // start screen re-executing itself for the game) append to the same log.
 static char g_log_path[1024];
+#if defined(__ANDROID__)
+static char g_crash_log_path[1024];
+
+void plat_android_log(int prio, const char *fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    __android_log_vprint(prio, "SkyRecomp", fmt, ap);
+    va_end(ap);
+
+    if (g_crash_log_path[0]) {
+        FILE *f = fopen(g_crash_log_path, "a");
+        if (f) {
+            va_start(ap, fmt);
+            vfprintf(f, fmt, ap);
+            va_end(ap);
+            fclose(f);
+        }
+    }
+}
+#endif
 
 static void log_to_file_without_terminal(void) {
+#if defined(__ANDROID__)
+    char dir[1024];
+    const char *env = getenv("LARECOMP_DATA_ROOT");
+    if (env && *env) {
+        snprintf(dir, sizeof dir, "%s", env);
+    } else {
+        snprintf(dir, sizeof dir, "/sdcard/Android/data/com.apolinario.skyrecomp/files");
+    }
+    for (char *c = dir + 1; *c; c++)
+        if (*c == '/') { *c = 0; mkdir(dir, 0755); *c = '/'; }
+    mkdir(dir, 0755);
+    snprintf(g_log_path, sizeof g_log_path, "%s/skyrecomp.log", dir);
+    snprintf(g_crash_log_path, sizeof g_crash_log_path, "%s/skyrecomp_crash.log", dir);
+    bool append = getenv("SKYRECOMP_LOG_APPEND") != NULL;
+    if (freopen(g_log_path, append ? "a" : "w", stderr)) {
+        dup2(STDERR_FILENO, STDOUT_FILENO);
+        setenv("SKYRECOMP_LOG_APPEND", "1", 1);
+    }
+    __android_log_print(ANDROID_LOG_INFO, "SkyRecomp", "Logging initialized at %s", g_log_path);
+    return;
+#else
     if (isatty(STDERR_FILENO)) return;
     char dir[900];
     const char *env = getenv("LARECOMP_DATA_ROOT"), *xdg = getenv("XDG_DATA_HOME"), *home = getenv("HOME");
@@ -97,6 +171,7 @@ static void log_to_file_without_terminal(void) {
     if (!freopen(g_log_path, append ? "a" : "w", stderr)) { g_log_path[0] = 0; return; }
     dup2(STDERR_FILENO, STDOUT_FILENO);
     setenv("SKYRECOMP_LOG_APPEND", "1", 1);
+#endif
 }
 
 #if defined(__x86_64__)
@@ -114,6 +189,12 @@ static void require_cpu(void) {}
 #endif
 
 void plat_init(void) {
+#if defined(__ANDROID__) && defined(__aarch64__)
+#if defined(M_BIONIC_SET_HEAP_TAGGING_LEVEL)
+    mallopt(M_BIONIC_SET_HEAP_TAGGING_LEVEL, M_HEAP_TAGGING_LEVEL_NONE);
+#endif
+    prctl(PR_SET_TAGGED_ADDR_CTRL, 0, 0, 0, 0);
+#endif
     log_to_file_without_terminal();
     require_cpu();
 }
@@ -162,6 +243,11 @@ const char *plat_symbol(uint64_t pc, uint64_t *offset) {
 
 // Fatal error without a terminal: say so in a message box rather than vanishing (the details are in the log).
 void plat_fatal_notice(void) {
+#if defined(__ANDROID__)
+    if (g_log_path[0]) {
+        __android_log_print(ANDROID_LOG_FATAL, "SkyRecomp", "Fatal crash or stop! Log: %s", g_log_path);
+    }
+#endif
     if (!g_log_path[0]) return;
     fflush(stderr);
     char text[1200];
@@ -171,9 +257,39 @@ void plat_fatal_notice(void) {
 
 const char *rt_host_fn_name(uint64_t pc, uint64_t *offset);  // runtime/dispatch.c
 
+#if defined(__ANDROID__)
+struct UnwindState {
+    void **current;
+    void **end;
+};
+
+static _Unwind_Reason_Code unwind_callback(struct _Unwind_Context *context, void *arg) {
+    struct UnwindState *state = (struct UnwindState *)arg;
+    uintptr_t pc = _Unwind_GetIP(context);
+    if (pc) {
+        if (state->current < state->end) {
+            *state->current++ = (void *)pc;
+        } else {
+            return _URC_END_OF_STACK;
+        }
+    }
+    return _URC_NO_REASON;
+}
+
+static int android_backtrace(void **buffer, int size) {
+    struct UnwindState state = {buffer, buffer + size};
+    _Unwind_Backtrace(unwind_callback, &state);
+    return (int)(state.current - buffer);
+}
+#endif
+
 void plat_print_backtrace(void) {
     void *bt[64];
+#if defined(__ANDROID__)
+    int n = android_backtrace(bt, 64);
+#else
     int n = backtrace(bt, 64);
+#endif
     Dl_info self = {0};
     dladdr((void *)plat_print_backtrace, &self);
     for (int i = 0; i < n; i++) {
@@ -185,10 +301,15 @@ void plat_print_backtrace(void) {
         if (!s && ours) s = rt_host_fn_name(pc, &off);
         const char *mod = di.dli_fname ? (strrchr(di.dli_fname, '/') ? strrchr(di.dli_fname, '/') + 1 : di.dli_fname) : "?";
         uint64_t moff = pc - (uint64_t)(uintptr_t)di.dli_fbase;
-        if (s && ours) fprintf(stderr, "  #%-2d %016llx %s+%llx (skyrecomp+%llx)\n", i, (unsigned long long)pc, s,
+        char line[512];
+        if (s && ours) snprintf(line, sizeof line, "  #%-2d %016llx %s+%llx (skyrecomp+%llx)", i, (unsigned long long)pc, s,
                                (unsigned long long)off, (unsigned long long)moff);
-        else if (s) fprintf(stderr, "  #%-2d %016llx %s+%llx (%s)\n", i, (unsigned long long)pc, s, (unsigned long long)off, mod);
-        else fprintf(stderr, "  #%-2d %016llx %s+%llx\n", i, (unsigned long long)pc, mod, (unsigned long long)moff);
+        else if (s) snprintf(line, sizeof line, "  #%-2d %016llx %s+%llx (%s)", i, (unsigned long long)pc, s, (unsigned long long)off, mod);
+        else snprintf(line, sizeof line, "  #%-2d %016llx %s+%llx", i, (unsigned long long)pc, mod, (unsigned long long)moff);
+        fprintf(stderr, "%s\n", line);
+#if defined(__ANDROID__)
+        __android_log_print(ANDROID_LOG_ERROR, "SkyRecomp", "%s", line);
+#endif
     }
 }
 
@@ -230,6 +351,11 @@ void plat_crash_handler_install(void) {
 extern char **environ;
 
 PlatProc plat_spawn(const char *const argv[], const char *log_path, bool append_log) {
+#if defined(__ANDROID__)
+    (void)argv; (void)log_path; (void)append_log;
+    __android_log_print(ANDROID_LOG_WARN, "SkyRecomp", "plat_spawn is disabled on Android app sandbox");
+    return 0;
+#else
     posix_spawn_file_actions_t fa;
     posix_spawn_file_actions_init(&fa);
     posix_spawn_file_actions_addopen(&fa, 1, log_path ? log_path : "/dev/null",
@@ -244,6 +370,7 @@ PlatProc plat_spawn(const char *const argv[], const char *log_path, bool append_
     posix_spawnattr_destroy(&at);
     posix_spawn_file_actions_destroy(&fa);
     return rc ? 0 : (PlatProc)pid;
+#endif
 }
 
 void plat_proc_kill(PlatProc p) {

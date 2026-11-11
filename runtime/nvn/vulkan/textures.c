@@ -901,13 +901,13 @@ VkSampler vk_sampler(NvnSamplerDesc *d) {
     if (si.maxLod < si.minLod) si.maxLod = si.minLod;
     si.mipLodBias = d->lod_bias;
     float af = nvn_sampler_aniso(d);
-    if (af > 1) { si.anisotropyEnable = VK_TRUE; si.maxAnisotropy = fminf(af, 16); }
+    if (g_vk.has_sampler_anisotropy && af > 1) { si.anisotropyEnable = VK_TRUE; si.maxAnisotropy = fminf(af, 16); }
     static float lodmin = -1;
     if (lodmin < 0) lodmin = getenv("LARECOMP_LOD_MIN") ? (float)atof(getenv("LARECOMP_LOD_MIN")) : 0;
     if (lodmin > 0 && mf > 1) si.minLod = fmaxf(si.minLod, lodmin);
     static int stest = -1;
     if (stest < 0) stest = getenv("LARECOMP_SAMPLER_TEST") != NULL;
-    if (stest && mf > 1) { si.minLod = 0; si.maxLod = VK_LOD_CLAMP_NONE; si.anisotropyEnable = VK_TRUE; si.maxAnisotropy = 16; }
+    if (g_vk.has_sampler_anisotropy && stest && mf > 1) { si.minLod = 0; si.maxLod = VK_LOD_CLAMP_NONE; si.anisotropyEnable = VK_TRUE; si.maxAnisotropy = 16; }
     if (d->compare_mode) {
         si.compareEnable = VK_TRUE;
         si.compareOp = getenv("LARECOMP_NO_SHADOW") ? VK_COMPARE_OP_ALWAYS : compare_op(d->compare_func);

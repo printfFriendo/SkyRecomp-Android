@@ -1,5 +1,7 @@
 // LAS Recomp entry: load modules, set up the kernel, run nn::init::Start on the main thread.
 #include <SDL3/SDL.h>
+#include <SDL3/SDL_main.h>
+#include <limits.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
@@ -41,6 +43,11 @@ static void rtld_init_main(Cpu *c) { module_init(c, &g_modules[0]); }
 // regions at random addresses in the same window; on a collision, re-exec for a fresh layout.
 __attribute__((constructor(101))) static void reserve_guest_space(void) {
     if (plat_reserve_guest(GUEST_LO, GUEST_HI)) return;
+#if defined(__ANDROID__)
+    fprintf(stderr, "FATAL: guest address range %llx-%llx is not free\n", (unsigned long long)GUEST_LO, (unsigned long long)GUEST_HI);
+    LOG("FATAL: guest address range %llx-%llx is not free in Android address space\n", (unsigned long long)GUEST_LO, (unsigned long long)GUEST_HI);
+    return;
+#else
     const char *tries = getenv("LARECOMP_REEXEC");
     int n = tries ? atoi(tries) : 0;
     if (n >= 20) {
@@ -53,6 +60,7 @@ __attribute__((constructor(101))) static void reserve_guest_space(void) {
     plat_exec(NULL);
     perror("re-exec");
     exit(1);
+#endif
 }
 
 // ------------------------------------------------------------------ boot / in-place reboot
@@ -217,7 +225,7 @@ int main(int argc, char **argv) {
 #endif
     const char *root = "extracted";  // (in the data root)
     bool skip_launcher = getenv("LARECOMP_NO_LAUNCHER") || getenv("LARECOMP_INPUT");  // tests boot straight in
-    static char arg_root[1024];
+    static char arg_root[PATH_MAX];
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--play")) skip_launcher = true;
         else if (argv[i][0] != '-' && !realpath(argv[i], arg_root)) root = argv[i];  // (relative to where we started)

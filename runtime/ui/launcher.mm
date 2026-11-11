@@ -33,9 +33,11 @@
 #include "imgui_impl_sdl3.h"
 
 extern "C" {
+#if !defined(__ANDROID__)
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 #include <libswscale/swscale.h>
+#endif
 #include "platform.h"
 #include "paths.h"
 #include "gamebuild.h"
@@ -614,6 +616,10 @@ typedef void *GpuDevice;
 static int g_bg_w, g_bg_h;
 
 static void load_background(GpuDevice dev) {
+#if defined(__ANDROID__)
+    (void)dev;
+    return;
+#else
     std::string path = g_root + "/romfs/THP/Demo01_01.webm";
     char res_buf[1024];
     if (!file_exists(path) && rt_resource("Gamedata/THP/Demo01_01.webm", NULL, res_buf, sizeof res_buf)) path = res_buf;
@@ -664,6 +670,7 @@ static void load_background(GpuDevice dev) {
         avcodec_free_context(&cc);
     }
     avformat_close_input(&fmt);
+#endif
 }
 
 // ------------------------------------------------------------------ seeds
@@ -1194,7 +1201,11 @@ extern "C" void launcher_run(const char *root) {
     std::string own = rt_resource("Baloo2-SemiBold.ttf", "fonts/Baloo2-SemiBold.ttf", baloo, sizeof baloo) ? baloo : "";
     const char *fonts[] = {getenv("LARECOMP_LAUNCHER_FONT") ? getenv("LARECOMP_LAUNCHER_FONT") : "",  // (test)
                            own.c_str(), "fonts/nintendo_udsgr_std_003.ttf", "/System/Library/Fonts/Avenir Next.ttc",
-                           "/System/Library/Fonts/Helvetica.ttc", "C:/Windows/Fonts/segoeui.ttf"};
+                           "/System/Library/Fonts/Helvetica.ttc", "C:/Windows/Fonts/segoeui.ttf",
+#if defined(__ANDROID__)
+                           "/system/fonts/Roboto-Regular.ttf", "/system/fonts/NotoSansCJK-Regular.ttc", "/system/fonts/DroidSans.ttf",
+#endif
+    };
     static const ImWchar ranges[] = {0x20, 0xFF, 0x2039, 0x203A, 0x2192, 0x2192, 0x2713, 0x2713, 0x25B8, 0x25B8, 0};  // + ‹ › → ✓ ▸
     for (const char *p : fonts) {
         if (g_font_menu || !*p || !file_exists(p)) continue;

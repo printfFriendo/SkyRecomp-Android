@@ -9,11 +9,13 @@
 //   11 SendInputBufferForDecode(int, int off, int size, int64 time, uint32 flags),
 //   12 AcquireOutputBufferIndex(int*, int64*, uint32*, int*), 13 GetOutputBuffer(int, Buffer*),
 //   15 ReleaseOutputBufferIndex(int), 18 GetOutputBufferFormat(int, MediaData*).
+#if !defined(__ANDROID__)
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 #include <libavutil/time.h>
 #include <libavutil/imgutils.h>
 #include <libswscale/swscale.h>
+#endif
 #include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
@@ -164,6 +166,7 @@ static void signal_guest_event(Cpu *c, uint64_t event) {
 
 static void ok(Cpu *c) { c->x[0] = 0; }
 
+#if !defined(__ANDROID__)
 // ------------------------------------------------------------------ Extractor
 typedef struct {
     AVFormatContext *fmt;
@@ -870,3 +873,40 @@ HLE_FUNC("_ZN5movie7DecoderC1ENS_11DecoderTypeENS_19DecoderOutputFormatENS_11Dec
     self[0] = vt;
     self[1] = (uint64_t)(uintptr_t)d;
 }
+#else
+// ------------------------------------------------------------------ Android movie stubs
+static void stub_ok(Cpu *c) { c->x[0] = 0; }
+static void stub_eos(Cpu *c) { c->x[0] = MOVIE_EOS; }
+static void stub_zero(Cpu *c) { if (c->x[1]) *(int32_t *)(uintptr_t)c->x[1] = 0; c->x[0] = 0; }
+
+static uint64_t g_stub_ex_vt, g_stub_dec_vt;
+
+HLE_FUNC("_ZN5movie9ExtractorC1ENS_13ContainerTypeE", movie_extractor_ctor) {
+    if (!g_stub_ex_vt) {
+        HostFn f[16];
+        for (int i = 0; i < 16; i++) f[i] = stub_ok;
+        f[4] = stub_zero;
+        f[10] = stub_eos;
+        g_stub_ex_vt = make_vtable(f, 16, "Extractor");
+    }
+    uint64_t *self = (uint64_t *)(uintptr_t)c->x[0];
+    self[0] = g_stub_ex_vt;
+    self[1] = 0;
+}
+
+HLE_FUNC("_ZN5movie7DecoderC1ENS_11DecoderTypeENS_19DecoderOutputFormatENS_11DecoderModeEi", movie_decoder_ctor) {
+    if (!g_stub_dec_vt) {
+        HostFn f[19];
+        for (int i = 0; i < 19; i++) f[i] = stub_ok;
+        f[12] = stub_eos;
+        g_stub_dec_vt = make_vtable(f, 19, "Decoder");
+    }
+    uint64_t *self = (uint64_t *)(uintptr_t)c->x[0];
+    self[0] = g_stub_dec_vt;
+    self[1] = 0;
+}
+
+RT_ON_RESET(movie_reset) {
+    g_stub_ex_vt = g_stub_dec_vt = 0;
+}
+#endif

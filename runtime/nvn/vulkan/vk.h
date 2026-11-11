@@ -37,6 +37,7 @@ typedef struct {
     VkSemaphore timeline;      // value = last completed submission number
     VkCommandPool pool;        // render thread only
     bool custom_border, divisor, host_import, logic_op, mirror_clamp;
+    bool has_depth_clamp, has_dual_src_blend, has_fill_mode_non_solid, has_sampler_anisotropy, has_shader_clip_distance;
     // window
     VkSurfaceKHR surface;
     VkSwapchainKHR swapchain;

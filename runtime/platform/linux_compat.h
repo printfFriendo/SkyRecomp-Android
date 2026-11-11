@@ -3,7 +3,16 @@
 #pragma once
 #include <stdint.h>
 #include <string.h>
+
+#if defined(__ANDROID__)
+#include <stdlib.h>
+// Android Bionic natively provides strlcpy, strlcat, arc4random and arc4random_uniform in libc
+#else
 #include <sys/random.h>
+
+#ifndef __GLIBC_PREREQ
+#define __GLIBC_PREREQ(maj, min) 0
+#endif
 
 #if !__GLIBC_PREREQ(2, 38)
 static inline size_t strlcpy(char *d, const char *s, size_t n) {
@@ -34,4 +43,5 @@ static inline uint32_t arc4random_uniform(uint32_t n) {
     do r = arc4random(); while (r < min);
     return r % n;
 }
+#endif
 #endif

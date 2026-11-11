@@ -38,9 +38,23 @@ generated/
 /*.dll
 /tools/*.exe
 build/
+build-android/
 cache/
 save/
 scratch/
+
+# Android build artifacts, caches, and keystores
+.cxx/
+android/.gradle/
+android/build/
+android/app/build/
+android/app/.cxx/
+android/local.properties
+android/*.jks
+android/*.keystore
+*.apk
+*.aab
+ANDROID_BUILD_ERRORS.log
 
 # User installed mods
 mods/*

@@ -68,6 +68,16 @@ static int candidates(const char *game_dir, char out[3][1100]) {
 
 bool gamelib_present(const char *game_dir) {
     if (g_tables) return true;
+#if defined(__ANDROID__)
+    void *h = dlopen(GAMELIB_NAME, RTLD_NOW | RTLD_LOCAL);
+    if (h) {
+        GameLibEntry entry = (GameLibEntry)dlsym(h, GAMELIB_ENTRY);
+        if (entry) {
+            const GameLibTables *t = entry();
+            if (t && t->abi == GAMELIB_ABI && t->id && id_acceptable(t->id)) return true;
+        }
+    }
+#endif
     char c[3][1100];
     int n = candidates(game_dir, c);
     for (int i = 0; i < n; i++)
@@ -82,6 +92,11 @@ static const GameLibTables *open_lib(const char *path) {
     GameLibEntry entry = (GameLibEntry)(void *)GetProcAddress(h, GAMELIB_ENTRY);
 #else
     void *h = dlopen(path, RTLD_NOW | RTLD_LOCAL);
+#if defined(__ANDROID__)
+    if (!h) {
+        h = dlopen(GAMELIB_NAME, RTLD_NOW | RTLD_LOCAL);
+    }
+#endif
     if (!h) { snprintf(g_error, sizeof g_error, "%s", dlerror()); return NULL; }
     GameLibEntry entry = (GameLibEntry)dlsym(h, GAMELIB_ENTRY);
 #endif
@@ -113,6 +128,14 @@ bool gamelib_load(const char *game_dir, char *why, size_t why_size) {
             if (g_tables) LOG("[gamelib] %s (%llu + %llu functions)\n", c[i], (unsigned long long)*g_tables->main_count,
                               (unsigned long long)*g_tables->sdk_count);
         }
+#if defined(__ANDROID__)
+        if (!g_tables) {
+            g_tables = open_lib(GAMELIB_NAME);
+            if (g_tables) LOG("[gamelib] loaded %s directly from APK nativeLibraryDir (%llu + %llu functions)\n",
+                              GAMELIB_NAME, (unsigned long long)*g_tables->main_count,
+                              (unsigned long long)*g_tables->sdk_count);
+        }
+#endif
     }
     if (!g_tables && why) snprintf(why, why_size, "%s", g_error);
     return g_tables != NULL;

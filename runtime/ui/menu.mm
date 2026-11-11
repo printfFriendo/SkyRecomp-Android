@@ -33,6 +33,9 @@ void input_mouse_update(void *window, bool playing);
 void save_editor_draw(float scale);  // save_editor.mm
 extern "C" int game_in_play(void);  // hle/warp.c
 void save_editor_on_open(void);
+#if defined(__ANDROID__)
+void touch_overlay_render(float display_w, float display_h, float scale);
+#endif
 void rando_tab_draw(float scale);
 bool warp_tab_draw(float scale);  // warp_tab.mm: true when a warp started
 extern "C" void cheats_draw(float scale);  // cheats.mm
@@ -170,6 +173,7 @@ static int g_kbd_max = 8;
 static bool capturing() { return g_open.load() || g_kbd.load() == 1; }
 // The game gets no input while this is true (runtime/hle/input.c): menu or name entry up.
 extern "C" bool menu_input_captured(void) { return capturing(); }
+extern "C" void menu_toggle(void) { set_open(!g_open.load()); }
 
 bool menu_handle_event(const SDL_Event *e) {
     static bool back_down, start_down;
@@ -189,6 +193,9 @@ bool menu_handle_event(const SDL_Event *e) {
     switch (e->type) {
     case SDL_EVENT_KEY_DOWN:
         if (!e->key.repeat && (e->key.scancode == SDL_SCANCODE_F1 ||
+#if defined(__ANDROID__)
+                               (e->key.scancode == SDL_SCANCODE_AC_BACK && !g_open.load()) ||
+#endif
                                (e->key.scancode == SDL_SCANCODE_ESCAPE && !g_open.load()))) {
             if (!typing) set_open(!g_open.load());  // (Esc with the menu open goes to ImGui below: it cancels a field)
             return true;
@@ -210,7 +217,11 @@ bool menu_handle_event(const SDL_Event *e) {
     case SDL_EVENT_KEY_UP: {
         if (!capturing()) return false;
         bool down = e->type == SDL_EVENT_KEY_DOWN;
-        if (down && e->key.scancode == SDL_SCANCODE_ESCAPE) {  // Esc: back out of popups, else close
+        if (down && (e->key.scancode == SDL_SCANCODE_ESCAPE
+#if defined(__ANDROID__)
+                     || e->key.scancode == SDL_SCANCODE_AC_BACK
+#endif
+        )) {  // Esc: back out of popups, else close
             QEvent q = {};
             q.kind = QEvent::KEY; q.key = ImGuiKey_Escape; q.down = true; push(q);
             q.down = false; push(q);
@@ -423,7 +434,11 @@ static void init(void) {
     cfg.OversampleH = 2;
     const char *paths[] = {"/System/Library/Fonts/Avenir Next.ttc", "/System/Library/Fonts/Helvetica.ttc",
                            "C:/Windows/Fonts/segoeui.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-                           "/usr/share/fonts/TTF/DejaVuSans.ttf", "/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf"};
+                           "/usr/share/fonts/TTF/DejaVuSans.ttf", "/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf",
+#if defined(__ANDROID__)
+                           "/system/fonts/Roboto-Regular.ttf", "/system/fonts/NotoSansCJK-Regular.ttc", "/system/fonts/DroidSans.ttf",
+#endif
+    };
     for (const char *p : paths) {
         if (FILE *f = fopen(p, "rb")) fclose(f);  // a missing file is an assertion in ImGui, not a NULL return
         else continue;
@@ -1035,7 +1050,13 @@ void menu_render(void *cmd, uint32_t target_w, uint32_t target_h) {
     drain_events(io);
     // fonts are built at 34/56 px for a ~1080 px tall output; scale to the window
     float scale = (float)(th / 1080.0);
+#if defined(__ANDROID__)
+    float disp_scale = SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay());
+    if (disp_scale > 1.0f) scale = fmaxf(scale, (float)(th / 1080.0) * (disp_scale * 0.75f));
+    if (scale < 0.75f) scale = 0.75f;
+#else
     if (scale < 0.45f) scale = 0.45f;
+#endif
     io.FontGlobalScale = scale;
 
 #ifdef __APPLE__
@@ -1083,6 +1104,12 @@ void menu_render(void *cmd, uint32_t target_w, uint32_t target_h) {
     if (inv) {
         inventory_overlay_draw(io.DisplaySize, g_font_big ? g_font_big : ImGui::GetFont());
     }
+
+#if defined(__ANDROID__)
+    if (!open) {
+        touch_overlay_render(io.DisplaySize.x, io.DisplaySize.y, scale);
+    }
+#endif
 
     if (open) {
         // dim the game behind the menu

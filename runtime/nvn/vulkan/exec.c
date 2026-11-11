@@ -1392,10 +1392,10 @@ static VkBlendFactor blend_factor(uint8_t f) {
     case 9: return VK_BLEND_FACTOR_DST_COLOR;
     case 10: return VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR;
     case 11: return VK_BLEND_FACTOR_SRC_ALPHA_SATURATE;
-    case 0x10: return VK_BLEND_FACTOR_SRC1_COLOR;
-    case 0x11: return VK_BLEND_FACTOR_ONE_MINUS_SRC1_COLOR;
-    case 0x12: return VK_BLEND_FACTOR_SRC1_ALPHA;
-    case 0x13: return VK_BLEND_FACTOR_ONE_MINUS_SRC1_ALPHA;
+    case 0x10: return g_vk.has_dual_src_blend ? VK_BLEND_FACTOR_SRC1_COLOR : VK_BLEND_FACTOR_SRC_COLOR;
+    case 0x11: return g_vk.has_dual_src_blend ? VK_BLEND_FACTOR_ONE_MINUS_SRC1_COLOR : VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
+    case 0x12: return g_vk.has_dual_src_blend ? VK_BLEND_FACTOR_SRC1_ALPHA : VK_BLEND_FACTOR_SRC_ALPHA;
+    case 0x13: return g_vk.has_dual_src_blend ? VK_BLEND_FACTOR_ONE_MINUS_SRC1_ALPHA : VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
     case 0x61: return VK_BLEND_FACTOR_CONSTANT_COLOR;
     case 0x62: return VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR;
     case 0x63: return VK_BLEND_FACTOR_CONSTANT_ALPHA;
@@ -1517,8 +1517,8 @@ static void build_pipeline(void *arg) {
                                                  .topology = topo_class_base(k->topo_class)};
     VkPipelineViewportStateCreateInfo vs = {.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO, .viewportCount = 1, .scissorCount = 1};
     VkPipelineRasterizationStateCreateInfo rs = {.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-                                                 .depthClampEnable = k->depth_clamp,
-                                                 .polygonMode = k->poly_fill ? VK_POLYGON_MODE_FILL : VK_POLYGON_MODE_LINE, .lineWidth = 1};
+                                                 .depthClampEnable = k->depth_clamp && g_vk.has_depth_clamp,
+                                                 .polygonMode = (k->poly_fill || !g_vk.has_fill_mode_non_solid) ? VK_POLYGON_MODE_FILL : VK_POLYGON_MODE_LINE, .lineWidth = 1};
     VkPipelineMultisampleStateCreateInfo ms = {.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
                                                .rasterizationSamples = (VkSampleCountFlagBits)k->samples, .alphaToCoverageEnable = k->a2c};
     VkPipelineDepthStencilStateCreateInfo ds = {.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO};

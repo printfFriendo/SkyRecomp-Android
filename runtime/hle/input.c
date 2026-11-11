@@ -30,6 +30,19 @@ enum {
 _Static_assert(BTN_DOWN == BIND_DOWN && BTN_ZL == BIND_ZL, "bindings follow the button bits");
 
 static _Atomic uint64_t key_buttons, pad_buttons;
+static _Atomic uint64_t touch_buttons;
+static _Atomic int32_t touch_lx, touch_ly, touch_rx, touch_ry;
+
+void touch_set_buttons(uint64_t buttons) {
+    atomic_store(&touch_buttons, buttons);
+}
+
+void touch_set_sticks(int32_t lx, int32_t ly, int32_t rx, int32_t ry) {
+    atomic_store(&touch_lx, lx);
+    atomic_store(&touch_ly, ly);
+    atomic_store(&touch_rx, rx);
+    atomic_store(&touch_ry, ry);
+}
 static _Atomic int32_t key_lx, key_ly, key_rx, key_ry, pad_lx, pad_ly, pad_rx, pad_ry;
 static _Atomic bool mouse_btn_left, mouse_btn_right, mouse_btn_middle, mouse_btn_x1, mouse_btn_x2;
 static uint8_t keys_down[SDL_SCANCODE_COUNT];
@@ -577,7 +590,7 @@ void input_frame(uint64_t frame) {
 extern bool menu_input_captured(void);  // runtime/ui/menu.mm: overlay menu or name entry up (it has the keys / pad)
 
 // Buttons held right now (keyboard, gamepad, test script), independent of whether the game polls (movies).
-uint64_t input_buttons_now(void) { return (menu_input_captured() ? 0 : key_buttons | pad_buttons) | script_buttons; }
+uint64_t input_buttons_now(void) { return (menu_input_captured() ? 0 : key_buttons | pad_buttons | atomic_load(&touch_buttons)) | script_buttons; }
 
 static int32_t clamp_axis(int32_t v) { return v > 32767 ? 32767 : v < -32767 ? -32767 : v; }
 
@@ -710,15 +723,18 @@ static void fill_state(Cpu *c) {
         LOG("[input] watching controller object %llx\n", c->x[1] - 8);
     }
     bool menu = menu_input_captured();  // the overlay menu / name entry has the controls (typing there isn't for the game)
-    uint64_t b = menu ? script_buttons : key_buttons | pad_buttons | script_buttons;
+    uint64_t tb = atomic_load(&touch_buttons);
+    uint64_t b = menu ? script_buttons : key_buttons | pad_buttons | tb | script_buttons;
     {   // injected Plus: held for ~10 presented frames (the game polls several times per frame)
         extern uint64_t renderer_present_count(void);
         static uint64_t until;
         if (g_inject_plus > 0) { until = renderer_present_count() + 10; g_inject_plus = 0; }
         if (renderer_present_count() < until) b |= 1ull << BTN_PLUS;
     }
-    int32_t lx = clamp_axis((menu ? 0 : key_lx + pad_lx) + script_lx), ly = clamp_axis((menu ? 0 : key_ly + pad_ly) + script_ly);
-    int32_t rx = clamp_axis((menu ? 0 : key_rx + pad_rx) + script_rx), ry = clamp_axis((menu ? 0 : key_ry + pad_ry) + script_ry);
+    int32_t t_lx = atomic_load(&touch_lx), t_ly = atomic_load(&touch_ly);
+    int32_t t_rx = atomic_load(&touch_rx), t_ry = atomic_load(&touch_ry);
+    int32_t lx = clamp_axis((menu ? 0 : key_lx + pad_lx + t_lx) + script_lx), ly = clamp_axis((menu ? 0 : key_ly + pad_ly + t_ly) + script_ly);
+    int32_t rx = clamp_axis((menu ? 0 : key_rx + pad_rx + t_rx) + script_rx), ry = clamp_axis((menu ? 0 : key_ry + pad_ry + t_ry) + script_ry);
     uint64_t now = SDL_GetTicks();
     bool mouse_sword = mouse_input(&b, &rx, &ry, now, menu);
     input_stick_circle(&lx, &ly);

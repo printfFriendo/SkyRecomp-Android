@@ -95,7 +95,20 @@ void rt_paths_init(void) {
     if (env && *env) snprintf(root, sizeof root, "%s", env);
     else if (is_dir("extracted")) snprintf(root, sizeof root, "%s", g_start), g_dev = true;  // dev / portable: as before
     else {
-#ifdef _WIN32
+#if defined(__ANDROID__)
+        const char *ext = "/sdcard/Android/data/com.apolinario.skyrecomp/files";
+        char *pref = SDL_GetPrefPath("Apolinario", "SkyRecomp");
+        if (is_dir(ext)) {
+            snprintf(root, sizeof root, "%s", ext);
+        } else if (pref) {
+            snprintf(root, sizeof root, "%s", pref);
+            size_t l = strlen(root);
+            if (l > 1 && root[l - 1] == '/') root[l - 1] = 0;
+        } else {
+            snprintf(root, sizeof root, "%s", ext);
+        }
+        if (pref) SDL_free(pref);
+#elif defined(_WIN32)
         snprintf(root, sizeof root, "%s", g_exe_dir);
 #elif defined(__linux__)
         // (the AppImage is read-only): $XDG_DATA_HOME/skyrecomp, ~/.local/share/skyrecomp by default
@@ -213,8 +226,12 @@ unsigned long long rt_game_files_size(const char *game_dir) {
 
 // Window / Dock icon: icon.png shipped next to the exe or in the .app (none for a plain source build).
 void rt_window_icon(SDL_Window *w) {
+#if !defined(__ANDROID__)
     char p[1100];
     if (!rt_resource("icon.png", NULL, p, sizeof p)) return;
-    SDL_Surface *s = SDL_LoadPNG(p);
+    SDL_Surface *s = SDL_LoadBMP(p);
     if (s) SDL_SetWindowIcon(w, s), SDL_DestroySurface(s);
+#else
+    (void)w;
+#endif
 }
