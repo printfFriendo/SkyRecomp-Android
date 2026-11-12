@@ -325,6 +325,49 @@ static void perf_cell(const char *fmt, float v) {
     if (v < 0) ImGui::TextDisabled("-");
     else ImGui::Text(fmt, v);
 }
+
+#if defined(__ANDROID__)
+#include <dlfcn.h>
+typedef void* (*pfn_AThermal_acquireManager)(void);
+typedef int (*pfn_AThermal_getCurrentThermalStatus)(void*);
+typedef void (*pfn_AThermal_releaseManager)(void*);
+
+static const char *android_get_thermal_str(void) {
+    static void *libandroid = NULL;
+    static pfn_AThermal_acquireManager acquire_mgr = NULL;
+    static pfn_AThermal_getCurrentThermalStatus get_status = NULL;
+    static pfn_AThermal_releaseManager release_mgr = NULL;
+    static bool init_tried = false;
+
+    if (!init_tried) {
+        init_tried = true;
+        libandroid = dlopen("libandroid.so", RTLD_NOW | RTLD_LOCAL);
+        if (libandroid) {
+            acquire_mgr = (pfn_AThermal_acquireManager)dlsym(libandroid, "AThermal_acquireManager");
+            get_status = (pfn_AThermal_getCurrentThermalStatus)dlsym(libandroid, "AThermal_getCurrentThermalStatus");
+            release_mgr = (pfn_AThermal_releaseManager)dlsym(libandroid, "AThermal_releaseManager");
+        }
+    }
+
+    if (!acquire_mgr || !get_status || !release_mgr) return NULL;
+
+    void *mgr = acquire_mgr();
+    if (!mgr) return NULL;
+    int status = get_status(mgr);
+    release_mgr(mgr);
+
+    switch (status) {
+        case 0: return "Cool";
+        case 1: return "Warm";
+        case 2: return "Throttling";
+        case 3: return "Severe Hot";
+        case 4: return "Critical Hot";
+        case 5: return "Emergency";
+        default: return NULL;
+    }
+}
+#endif
+
 static void perf_overlay_draw(ImGuiIO &io, float scale) {
     PerfStats s;
     perfmon_snapshot(&s);
@@ -338,11 +381,21 @@ static void perf_overlay_draw(ImGuiIO &io, float scale) {
 #if defined(__ANDROID__)
         int sec = -1, pct = -1;
         SDL_PowerState pwr = SDL_GetPowerInfo(&sec, &pct);
+        const char *thm = android_get_thermal_str();
         if (pct >= 0) {
-            ImGui::Text("%.0f  %.1f ms  |  BAT %d%%%s", s.fps, s.frame_ms_avg, pct,
-                        pwr == SDL_POWERSTATE_CHARGING ? "+" : "");
+            if (thm) {
+                ImGui::Text("%.0f  %.1f ms  |  BAT %d%%%s  |  %s", s.fps, s.frame_ms_avg, pct,
+                            pwr == SDL_POWERSTATE_CHARGING ? "+" : "", thm);
+            } else {
+                ImGui::Text("%.0f  %.1f ms  |  BAT %d%%%s", s.fps, s.frame_ms_avg, pct,
+                            pwr == SDL_POWERSTATE_CHARGING ? "+" : "");
+            }
         } else {
-            ImGui::Text("%.0f  %.1f ms", s.fps, s.frame_ms_avg);
+            if (thm) {
+                ImGui::Text("%.0f  %.1f ms  |  %s", s.fps, s.frame_ms_avg, thm);
+            } else {
+                ImGui::Text("%.0f  %.1f ms", s.fps, s.frame_ms_avg);
+            }
         }
 #else
         ImGui::Text("%.0f  %.1f ms", s.fps, s.frame_ms_avg);
@@ -379,10 +432,18 @@ static void perf_overlay_draw(ImGuiIO &io, float scale) {
 #if defined(__ANDROID__)
     int sec = -1, pct = -1;
     SDL_PowerState pwr = SDL_GetPowerInfo(&sec, &pct);
+    const char *thm = android_get_thermal_str();
     if (pct >= 0) {
         ImGui::TextColored(ImVec4(0.93f, 0.76f, 0.33f, 1), "Battery: %d%% %s", pct,
                            pwr == SDL_POWERSTATE_CHARGING ? "[Charging]" :
                            pwr == SDL_POWERSTATE_CHARGED ? "[Full]" : "");
+    }
+    if (thm) {
+        ImVec4 thm_c = strcmp(thm, "Cool") == 0 ? ImVec4(0.45f, 0.95f, 0.75f, 1) :
+                       strcmp(thm, "Warm") == 0 ? ImVec4(0.95f, 0.80f, 0.38f, 1) :
+                       ImVec4(1.0f, 0.45f, 0.45f, 1);
+        if (pct >= 0) ImGui::SameLine();
+        ImGui::TextColored(thm_c, "|  Thermal: %s", thm);
     }
 #endif
     float top = s.frame_ms_max > 50 ? s.frame_ms_max : 50;

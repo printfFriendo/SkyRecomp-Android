@@ -75,6 +75,25 @@ def main():
     print(f"Compiler: {clang}")
     print(f"Target ABI: arm64-v8a (Android API 33)")
 
+    nsp_arg = None
+    keys_arg = None
+    for idx, a in enumerate(sys.argv):
+        if a in ("--nsp", "--rom") and idx + 1 < len(sys.argv):
+            nsp_arg = sys.argv[idx + 1]
+        elif a in ("--keys", "-k") and idx + 1 < len(sys.argv):
+            keys_arg = sys.argv[idx + 1]
+
+    if nsp_arg:
+        try:
+            from tools.extract_nsp import extract
+        except ImportError:
+            from extract_nsp import extract
+        out_dir = os.path.abspath("extracted")
+        print(f"\n[NSP] Automatic ROM extraction requested for: {nsp_arg}")
+        if not extract(nsp_arg, keys_arg, out_dir=out_dir):
+            print("[ERROR] ROM extraction failed!", file=sys.stderr)
+            sys.exit(1)
+
     build_dir = os.path.abspath("build-android")
     obj_dir = os.path.join(build_dir, "obj_skygame")
     unity_dir = os.path.join(build_dir, "unity_src")
@@ -308,10 +327,16 @@ def main():
 
     # Push to ADB if requested
     if "--push" in sys.argv or "-p" in sys.argv:
-        print("\nPushing libskygame.so to connected Android device via ADB...")
+        print("\nPushing game assets and library to connected Android device via ADB...")
         dest_dir = "/sdcard/Android/data/com.apolinario.skyrecomp/files"
-        subprocess.run(["adb", "push", out_so, dest_dir])
+        subprocess.run(["adb", "shell", f"mkdir -p {dest_dir}"])
+        subprocess.run(["adb", "push", out_so, f"{dest_dir}/libskygame.so"])
         print("[DONE] libskygame.so pushed to device!")
+        romfs_bin = os.path.abspath("extracted/romfs.bin")
+        if os.path.exists(romfs_bin):
+            print("Pushing romfs.bin to device...")
+            subprocess.run(["adb", "push", romfs_bin, f"{dest_dir}/romfs.bin"])
+            print("[DONE] romfs.bin pushed to device!")
 
     print("\n[COMPLETE] Android Game Library build finished successfully.")
 

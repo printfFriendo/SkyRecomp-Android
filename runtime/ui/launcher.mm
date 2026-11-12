@@ -44,6 +44,7 @@ extern "C" {
 #include "gamelib.h"
 #include "romfs_build.h"
 #include "settings.h"
+#include "nsp_extract.h"
 #include "input_bind.h"
 void controls_bindings_draw(float scale);  // ui/controls_ui.mm
 void ui_window_init(void);
@@ -235,8 +236,26 @@ static bool file_exists(const std::string &p) {
 
 // The copied game files alone ("" = there), without the game code built from them
 static std::string check_copied_files(const std::string &root) {
+#if defined(__ANDROID__)
+    if (gamelib_present(root.c_str())) {
+        if (file_exists(root + "/romfs.bin") || file_exists(root + "/romfs/region_common") || file_exists(root + "/romfs/Object")) {
+            return "";
+        }
+        char nsp_found[1024];
+        if (nsp_find_in_dir(root.c_str(), nsp_found, sizeof(nsp_found))) {
+            return "ROM package found (ready to extract)";
+        }
+        return "Game data missing";
+    }
+#endif
     FILE *f = fopen((root + "/exefs/main").c_str(), "rb");
-    if (!f) return "No game files";
+    if (!f) {
+        char nsp_found[1024];
+        if (nsp_find_in_dir(root.c_str(), nsp_found, sizeof(nsp_found))) {
+            return "ROM package found (ready to extract)";
+        }
+        return "No game files";
+    }
     uint8_t id[8] = {0};
     fseek(f, 0x40, SEEK_SET);
     size_t n = fread(id, 1, 8, f);
@@ -299,7 +318,7 @@ static bool is_dir(const std::string &p) {
 
 // exefs: the folder with main and main.npdm; romfs: the folder with Object/THP (the game's data root). Found
 // in the picked folder or a few levels below it (dump tools nest them).
-static void find_game(const std::string &dir, int depth, std::string &exefs, std::string &romfs, bool &unusable) {
+static void find_game(const std::string &dir, int depth, std::string &exefs, std::string &romfs, std::string &found_rom, bool &unusable) {
     if (depth > 4 || (!exefs.empty() && !romfs.empty())) return;
     if (exefs.empty() && file_exists(dir + "/main")) exefs = dir;
     if (romfs.empty() && (is_dir(dir + "/Object") || is_dir(dir + "/THP") || is_dir(dir + "/region_common") || file_exists(dir + "/romfs.bin"))) romfs = dir;
@@ -311,12 +330,16 @@ static void find_game(const std::string &dir, int depth, std::string &exefs, std
         if (n[0] == '.') continue;
         std::string ext = n.size() > 4 ? n.substr(n.size() - 4) : "";
         for (auto &ch : ext) ch = (char)tolower((unsigned char)ch);
-        if (ext == ".xci" || ext == ".nsp" || ext == ".nca" || ext == ".nsz" || ext == ".xcz") unusable = true;
+        if (ext == ".nsp" || ext == ".xci") {
+            found_rom = dir + "/" + n;
+        } else if (ext == ".nca" || ext == ".nsz" || ext == ".xcz") {
+            unusable = true;
+        }
         if (n != "region_common" && is_dir(dir + "/" + n)) sub.push_back(dir + "/" + n);
     }
     closedir(d);
     std::sort(sub.begin(), sub.end());
-    for (auto &s : sub) find_game(s, depth + 1, exefs, romfs, unusable);
+    for (auto &s : sub) find_game(s, depth + 1, exefs, romfs, found_rom, unusable);
 }
 
 static bool build_id_ok(const std::string &main_path) {
@@ -379,8 +402,8 @@ static void *extract_thread(void *) {
         goto done;
     }
 
-    if (!src.empty() || check_copied_files(g_root).empty()) {
-        std::string exefs, romfs;
+    if (!src.empty() || check_copied_files(g_root).empty() || check_copied_files(g_root).find("ROM package found") != std::string::npos) {
+        std::string exefs, romfs, found_rom;
         bool unusable = false;
         if (src.empty() && check_copied_files(g_root).empty()) {
             g_copy_skipped = true;
@@ -388,7 +411,38 @@ static void *extract_thread(void *) {
             goto check;
         }
         set_job("Scanning folder for game files...");
-        find_game(src, 0, exefs, romfs, unusable);
+        if (!src.empty()) find_game(src, 0, exefs, romfs, found_rom, unusable);
+        if (found_rom.empty()) {
+            char r_found[1024];
+            if (nsp_find_in_dir(g_root.c_str(), r_found, sizeof(r_found))) found_rom = r_found;
+            else if (!src.empty() && nsp_find_in_dir(src.c_str(), r_found, sizeof(r_found))) found_rom = r_found;
+            else if (!src.empty() && nsp_is_rom(src.c_str())) found_rom = src;
+        }
+
+        if (!found_rom.empty() && !file_exists(g_root + "/romfs.bin")) {
+            set_job("Decrypting and extracting game ROM (.nsp)...");
+            const char *keys_file = g_settings.keys_path[0] ? g_settings.keys_path : NULL;
+            char auto_keys[1024] = "";
+            if (!keys_file) {
+                if (file_exists(g_root + "/prod.keys")) snprintf(auto_keys, sizeof(auto_keys), "%s/prod.keys", g_root.c_str());
+                else if (file_exists(g_root + "/title.keys")) snprintf(auto_keys, sizeof(auto_keys), "%s/title.keys", g_root.c_str());
+                else if (!src.empty() && file_exists(src + "/prod.keys")) snprintf(auto_keys, sizeof(auto_keys), "%s/prod.keys", src.c_str());
+                if (auto_keys[0]) keys_file = auto_keys;
+            }
+
+            auto nsp_prog = [](float pct, const char *msg) {
+                if (msg) set_job(msg);
+                g_build_frac = pct;
+            };
+
+            bool ext_ok = nsp_extract(found_rom.c_str(), g_root.c_str(), keys_file, nsp_prog);
+            if (!ext_ok) {
+                set_job("Failed to extract game from ROM", true, "Check free storage space (needs ~8 GB) or check prod.keys.");
+                goto done;
+            }
+            if (!build_game_code()) goto done;
+            goto check;
+        }
 
         if (exefs.empty() && file_exists(src + "/main")) exefs = src;
         if (romfs.empty()) {
@@ -1319,6 +1373,14 @@ extern "C" void launcher_run(const char *root) {
         }
         SDL_Event e;
         while (SDL_PollEvent(&e)) {
+            if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_AC_BACK) {
+                if (page == SETTINGS || page == SETUP) {
+                    page = MAIN;
+                } else {
+                    exit(0);
+                }
+                continue;
+            }
             if (page == SETTINGS && bind_capture_event(&e)) continue;  // (waiting for a new binding: controls_ui.mm)
             if (!launcher_pad_event(e)) ImGui_ImplSDL3_ProcessEvent(&e);
             if (e.type == SDL_EVENT_QUIT) exit(0);
@@ -1598,9 +1660,10 @@ extern "C" void launcher_run(const char *root) {
                 pthread_mutex_unlock(&g_lock);
                 bool ready = status.empty() && !busy;
                 static double files_gb = -1;
-                std::string src_v = src.empty() ? "Choose folder..." : "Selected";
+                bool rom_detected = (!check_copied_files(g_root).empty() && check_copied_files(g_root).find("ROM package found") != std::string::npos);
+                std::string src_v = rom_detected ? "ROM Ready" : src.empty() ? "Choose folder..." : "Selected";
                 auto check_left_of_value = [&](const std::string &v) {
-                    if (v != "Selected") return;
+                    if (v != "Selected" && v != "ROM Ready") return;
                     ImVec2 rb = ImGui::GetItemRectMax(), ra = ImGui::GetItemRectMin();
                     float fs = ImGui::GetFontSize(), vw = ImGui::CalcTextSize(v.c_str()).x;
                     float x = rb.x - 18 * sc - vw - fs * 0.95f, cy = (ra.y + rb.y) * 0.5f, u = fs * 0.62f;
@@ -1611,9 +1674,15 @@ extern "C" void launcher_run(const char *root) {
                 };
 
 #if defined(__ANDROID__)
-                char src_buf[512];
-                snprintf(src_buf, sizeof(src_buf), "Select your unpacked game files folder, or place 'romfs' in %s/. "
-                                                    "Sky Recomp does not include any game assets or copyrighted data.", rt_data_root());
+                char nsp_detected[1024] = "";
+                bool has_rom_package = nsp_find_in_dir(rt_data_root(), nsp_detected, sizeof(nsp_detected));
+                char src_buf[1024];
+                if (has_rom_package) {
+                    snprintf(src_buf, sizeof(src_buf), "Nintendo Switch ROM detected:\n%s\n\nClick 'Extract ROM & Play' below to extract RomFS and launch natively on Android!",
+                             nsp_detected);
+                } else {
+                    snprintf(src_buf, sizeof(src_buf), "Place your game ROM (.nsp / .xci) or 'romfs.bin' directly in:\n%s/\n\nSky Recomp will automatically extract and launch the game.", rt_data_root());
+                }
                 std::string src_d = src_buf;
 #else
                 std::string src_d = "Select the folder containing your unpacked game files (base version 1.0.0 or 1.0.1). "
@@ -1622,8 +1691,9 @@ extern "C" void launcher_run(const char *root) {
                 if (!src.empty()) src_d += "\n\nSelected folder:\n" + src;
 
                 const std::string &job_line = job;
-                std::string ex_d = "Copies the required files, builds the local data archive, and compiles the game code into "
-                                   "a native library for your PC. This runs once during initial setup and leaves your source folder untouched.";
+                std::string ex_d = rom_detected ? "Extracts ExeFS and streams RomFS (~7.55 GB) directly into the app storage to run natively on Android."
+                                                : "Copies the required files, builds the local data archive, and compiles the game code into "
+                                                  "a native library for your device. This runs once during initial setup and leaves your source folder untouched.";
                 if (!job.empty()) ex_d += "\n\n" + job + (job_hint.empty() ? "" : "\n" + job_hint);
 
                 static int seen_frame = -10, focus_first;
@@ -1647,8 +1717,10 @@ extern "C" void launcher_run(const char *root) {
                         if (opt_choice("Game code", &g_settings.game_build, BUILD_NAMES, 2, GAME_BUILD_FAST, BUILD_DESC))
                             settings_save();
                     }
-                    if (busy || (src.empty() && !check_copied_files(g_root).empty())) opt_disable_next();
-                    if (opt_action("Set up game files", busy ? "Working..." : "Start", ex_d.c_str(), true)) start_setup();
+                    bool can_setup = (!src.empty() || check_copied_files(g_root).empty() || rom_detected);
+                    if (busy || !can_setup) opt_disable_next();
+                    const char *setup_btn_label = rom_detected ? "Extract ROM & Play" : "Set up game files";
+                    if (opt_action(setup_btn_label, busy ? "Working..." : "Start", ex_d.c_str(), true)) start_setup();
                     files_gb = -1;
                 } else {
                     opt_section("Ready to Play");

@@ -53,6 +53,11 @@ static int32_t g_stick_lx = 0, g_stick_ly = 0;
 static int32_t g_stick_rx = 0, g_stick_ry = 0;
 static float g_cur_w = 1920.0f, g_cur_h = 1080.0f;
 
+static uint64_t g_last_lstick_tap = 0;
+static uint64_t g_last_rstick_tap = 0;
+static uint64_t g_stick_click_until = 0;
+static int g_stick_clicked_btn = -1;
+
 float touch_overlay_get_opacity(void) { return g_user_opacity; }
 void touch_overlay_set_opacity(float opacity) {
     if (opacity < 0.1f) opacity = 0.1f;
@@ -210,23 +215,39 @@ static void update_state(float W, float H, float s) {
             float dx = g_fingers[i].current_x - l_cx;
             float dy = g_fingers[i].current_y - l_cy;
             float len = sqrtf(dx * dx + dy * dy);
-            if (len > l_r) {
-                dx = (dx / len) * l_r;
-                dy = (dy / len) * l_r;
+            float deadzone = 0.12f * l_r;
+            if (len <= deadzone) {
+                lx = 0;
+                ly = 0;
+            } else {
+                float norm_len = (len - deadzone) / (l_r - deadzone);
+                if (norm_len > 1.0f) norm_len = 1.0f;
+                float dir_x = dx / len;
+                float dir_y = dy / len;
+                lx = (int32_t)(dir_x * norm_len * 32767.0f);
+                ly = (int32_t)(-dir_y * norm_len * 32767.0f); // Invert Y for Switch convention (Up is positive)
             }
-            lx = (int32_t)((dx / l_r) * 32767.0f);
-            ly = (int32_t)((-dy / l_r) * 32767.0f); // Invert Y for Switch convention (Up is positive)
         } else if (cid == CTRL_RSTICK) {
             float dx = g_fingers[i].current_x - r_cx;
             float dy = g_fingers[i].current_y - r_cy;
             float len = sqrtf(dx * dx + dy * dy);
-            if (len > r_r) {
-                dx = (dx / len) * r_r;
-                dy = (dy / len) * r_r;
+            float deadzone = 0.12f * r_r;
+            if (len <= deadzone) {
+                rx = 0;
+                ry = 0;
+            } else {
+                float norm_len = (len - deadzone) / (r_r - deadzone);
+                if (norm_len > 1.0f) norm_len = 1.0f;
+                float dir_x = dx / len;
+                float dir_y = dy / len;
+                rx = (int32_t)(dir_x * norm_len * 32767.0f);
+                ry = (int32_t)(-dir_y * norm_len * 32767.0f);
             }
-            rx = (int32_t)((dx / r_r) * 32767.0f);
-            ry = (int32_t)((-dy / r_r) * 32767.0f);
         }
+    }
+
+    if (SDL_GetTicks() < g_stick_click_until && g_stick_clicked_btn >= 0) {
+        buttons |= (1ull << g_stick_clicked_btn);
     }
 
     g_active_buttons = buttons;
@@ -259,6 +280,26 @@ bool touch_overlay_handle_event(const SDL_Event *e) {
         if (cid == CTRL_MENU) {
             menu_toggle();
             return true;
+        }
+
+        if (cid == CTRL_LSTICK) {
+            uint64_t now = SDL_GetTicks();
+            if (now - g_last_lstick_tap < 350) {
+                g_stick_clicked_btn = BTN_LSTICK;
+                g_stick_click_until = now + 180;
+                g_last_lstick_tap = 0;
+            } else {
+                g_last_lstick_tap = now;
+            }
+        } else if (cid == CTRL_RSTICK) {
+            uint64_t now = SDL_GetTicks();
+            if (now - g_last_rstick_tap < 350) {
+                g_stick_clicked_btn = BTN_RSTICK;
+                g_stick_click_until = now + 180;
+                g_last_rstick_tap = 0;
+            } else {
+                g_last_rstick_tap = now;
+            }
         }
 
         for (int i = 0; i < MAX_FINGERS; i++) {

@@ -79,7 +79,7 @@ file(GLOB RT_CORE_CPP
     "runtime/nvn/vulkan/*.cpp"
 )
 
-set(RT_CORE_SOURCES ${RT_CORE_C} ${RT_CORE_CPP})
+set(RT_CORE_SOURCES ${RT_CORE_C} ${RT_CORE_CPP} "runtime/nsp_extract.c")
 
 if (ANDROID OR CMAKE_SYSTEM_NAME MATCHES "Linux")
     list(APPEND RT_CORE_SOURCES "runtime/platform/linux.c")
