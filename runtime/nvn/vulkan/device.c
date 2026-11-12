@@ -71,7 +71,19 @@ static void create_instance(void) {
         validate = false;
         r = vkCreateInstance(&ci, NULL, &g_vk.inst);
     }
-    if (r != VK_SUCCESS) FATAL("vkCreateInstance: %d (is a Vulkan 1.3 driver installed?)\n", r);
+#if defined(__ANDROID__)
+    if (r != VK_SUCCESS) {
+        LOG("[vk] Vulkan 1.3 instance request failed (%d); falling back to Vulkan 1.2\n", r);
+        app.apiVersion = VK_API_VERSION_1_2;
+        r = vkCreateInstance(&ci, NULL, &g_vk.inst);
+    }
+    if (r != VK_SUCCESS) {
+        LOG("[vk] Vulkan 1.2 instance request failed (%d); falling back to Vulkan 1.1\n", r);
+        app.apiVersion = VK_API_VERSION_1_1;
+        r = vkCreateInstance(&ci, NULL, &g_vk.inst);
+    }
+#endif
+    if (r != VK_SUCCESS) FATAL("vkCreateInstance: %d (is a Vulkan driver installed?)\n", r);
     if (validate) {
         PFN_vkCreateDebugUtilsMessengerEXT f =
             (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(g_vk.inst, "vkCreateDebugUtilsMessengerEXT");
@@ -103,12 +115,20 @@ static void pick_device(void) {
         vkGetPhysicalDeviceProperties(pd[i], &p);
         LOG("[vk] gpu %u: %s (api %u.%u.%u)\n", i, p.deviceName, VK_API_VERSION_MAJOR(p.apiVersion),
             VK_API_VERSION_MINOR(p.apiVersion), VK_API_VERSION_PATCH(p.apiVersion));
+#if defined(__ANDROID__)
+        if (p.apiVersion < VK_API_VERSION_1_1) continue;
+#else
         if (p.apiVersion < VK_API_VERSION_1_3) continue;
+#endif
         int score = p.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU ? 3 : p.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU ? 2 : 1;
         if ((int)i == want) score = 100;
         if (score > best_score) { best_score = score; best = (int)i; }
     }
+#if defined(__ANDROID__)
+    if (best < 0) FATAL("no compatible Vulkan device found on Android\n");
+#else
     if (best < 0) FATAL("no Vulkan 1.3 device\n");
+#endif
     g_vk.phys = pd[best];
     free(pd);
     vkGetPhysicalDeviceProperties(g_vk.phys, &g_vk.props);

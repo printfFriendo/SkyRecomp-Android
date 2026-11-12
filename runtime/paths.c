@@ -11,6 +11,9 @@
 #ifdef _WIN32
 #include <windows.h>
 #endif
+#if defined(__ANDROID__)
+#include <android/log.h>
+#endif
 
 #include "gamelib.h"
 #include "paths.h"
@@ -76,6 +79,9 @@ static bool writable(const char *dir) {
 
 static void fail(const char *msg) {
     fprintf(stderr, "%s\n", msg);
+#if defined(__ANDROID__)
+    __android_log_print(ANDROID_LOG_FATAL, "SkyRecomp", "FATAL fail: %s", msg);
+#endif
     SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Sky Recomp", msg, NULL);
     exit(1);
 }
@@ -98,9 +104,9 @@ void rt_paths_init(void) {
 #if defined(__ANDROID__)
         const char *ext = "/sdcard/Android/data/com.apolinario.skyrecomp/files";
         char *pref = SDL_GetPrefPath("Apolinario", "SkyRecomp");
-        if (is_dir(ext)) {
+        if (is_dir(ext) && writable(ext)) {
             snprintf(root, sizeof root, "%s", ext);
-        } else if (pref) {
+        } else if (pref && (mkdirs(pref), writable(pref))) {
             snprintf(root, sizeof root, "%s", pref);
             size_t l = strlen(root);
             if (l > 1 && root[l - 1] == '/') root[l - 1] = 0;

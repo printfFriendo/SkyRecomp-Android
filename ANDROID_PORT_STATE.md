@@ -1,17 +1,15 @@
 # Android Port State (Checkpoint de Progresso)
 
 ## Status Atual
-- **Fase Ativa:** Todas as Fases (1 a 5) + Assinatura de Release + Auditoria Estática ELF Concluídas com Sucesso!
-- **Últimos Arquivos Modificados/Criados:** `docs/BUILD-android.md`, `android/skyrecomp-release.jks`, `android/app/build.gradle.kts`, `build_android.bat`, `runtime/ui/touch_overlay.*`, `CMakeLists.txt`
+- **Fase Ativa:** Todas as Fases (1 a 5) + Blindagem de Inicialização & Sensores de Giroscópio Concluídos!
+- **Últimos Arquivos Modificados/Criados:** `MainActivity.java`, `runtime/hle/input.c`, `runtime/nvn/vulkan/device.c`, `runtime/paths.c`, `runtime/platform/linux.c`
 - **Artefatos Finais:**
   - `android/app/build/outputs/apk/release/app-release.apk` (8.95 MB, **Assinado** com APK Signature Scheme v2, alinhado com `zipalign` 4-byte boundary).
-  - `android/app/build/outputs/apk/debug/app-debug.apk` (10.6 MB, com símbolos de debug JNI).
-  - `docs/BUILD-android.md` (Guia oficial de build, deployment, controles e layout de diretórios).
-- **Verificação Estática Realizada:**
+  - Suporte a Sensores: Giroscópio e Acelerômetro nativos do smartphone integrados ao SixAxis/MotionPlus.
+  - Blindagem de Inicialização: Preload de `libc++_shared.so`, criação automática da pasta de dados pelo Java, fallbacks para Vulkan 1.1/1.2 em GPUs móveis e remoção de unmap destrutivo no `mmap`.
+- **Verificação Estática & Build:**
+  - Compilação Android NDK r28b + Gradle Release: 100% SUCCESS.
   - Alinhamento de páginas: 16KB (`0x4000`), 100% compatível com Android 15+.
-  - `DT_NEEDED`: Apenas bibliotecas válidas (`libSDL3.so`, `libc++_shared.so`, `libvulkan.so`, `liblog.so`, `libandroid.so`, `libdl.so`, `libm.so`, `libc.so`).
-  - Segurança de execução: Sem `TEXTREL`, `GNU_STACK` RW (sem stack executável).
-  - Símbolos exportados: `SDL_main` intacto, tabelas de HLE preservadas via `-Wl,-z,nostart-stop-gc`.
 
 ---
 

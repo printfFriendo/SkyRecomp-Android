@@ -306,11 +306,50 @@ void input_handle_event(const SDL_Event *e) {
         SDL_JoystickID *ids = SDL_GetGamepads(&n);
         if (n > 0 && !pad && (pad = SDL_OpenGamepad(ids[0]))) pad_opened();
         SDL_free(ids);
+#if defined(__ANDROID__)
+        int count = 0;
+        SDL_SensorID *sensors = SDL_GetSensors(&count);
+        if (sensors) {
+            for (int i = 0; i < count; i++) {
+                SDL_SensorType type = SDL_GetSensorTypeForID(sensors[i]);
+                if (type == SDL_SENSOR_GYRO) {
+                    SDL_Sensor *s = SDL_OpenSensor(sensors[i]);
+                    if (s) {
+                        LOG("[input] Android Gyroscope opened (ID %u)\n", (unsigned int)sensors[i]);
+                        motion_reset(true);
+                    }
+                } else if (type == SDL_SENSOR_ACCEL) {
+                    SDL_Sensor *s = SDL_OpenSensor(sensors[i]);
+                    if (s) {
+                        LOG("[input] Android Accelerometer opened (ID %u)\n", (unsigned int)sensors[i]);
+                    }
+                }
+            }
+            SDL_free(sensors);
+        }
+#endif
     }
     switch (e->type) {
     case SDL_EVENT_WINDOW_FOCUS_LOST:
         input_reset();
         break;
+#if defined(__ANDROID__)
+    case SDL_EVENT_SENSOR_UPDATE: {
+        SDL_SensorType stype = SDL_GetSensorTypeForID(e->sensor.which);
+        if (stype == SDL_SENSOR_GYRO || stype == SDL_SENSOR_ACCEL) {
+            SDL_GamepadSensorEvent gs;
+            memset(&gs, 0, sizeof gs);
+            gs.type = SDL_EVENT_GAMEPAD_SENSOR_UPDATE;
+            gs.which = 0;
+            gs.sensor = stype;
+            memcpy(gs.data, e->sensor.data, sizeof(float) * 3);
+            gs.sensor_timestamp = e->sensor.sensor_timestamp;
+            gs.timestamp = e->sensor.timestamp;
+            motion_sample(&gs);
+        }
+        break;
+    }
+#endif
     case SDL_EVENT_MOUSE_MOTION:
         if (mouse_captured && !menu_input_captured()) {
             if (mouse_skip_motion) { mouse_skip_motion = false; break; }

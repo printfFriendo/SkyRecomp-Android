@@ -58,13 +58,22 @@ bool plat_reserve_guest(uint64_t lo, uint64_t hi) {
                    MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE | MAP_FIXED_NOREPLACE, -1, 0);
     if (p == MAP_FAILED) {
 #if defined(__ANDROID__)
-        // Fallback for Android kernels that may lack MAP_FIXED_NOREPLACE or have strict ASLR
-        p = mmap((void *)(uintptr_t)lo, hi - lo, PROT_READ | PROT_WRITE,
-                 MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE | MAP_FIXED, -1, 0);
+        if (errno == EINVAL) {
+            // Kernel does not support MAP_FIXED_NOREPLACE flag, try standard hint
+            p = mmap((void *)(uintptr_t)lo, hi - lo, PROT_READ | PROT_WRITE,
+                     MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
+        } else {
+            __android_log_print(ANDROID_LOG_WARN, "SkyRecomp", "Guest range 0x%llx - 0x%llx already occupied in process (errno %d)", (unsigned long long)lo, (unsigned long long)hi, errno);
+            return false;
+        }
+#else
+        return false;
 #endif
-        if (p == MAP_FAILED) return false;
     }
-    if (p != (void *)(uintptr_t)lo) { munmap(p, hi - lo); return false; }  // (kernels before 4.17: just a hint)
+    if (p == MAP_FAILED || p != (void *)(uintptr_t)lo) {
+        if (p != MAP_FAILED) munmap(p, hi - lo);
+        return false;
+    }
     return true;
 }
 
