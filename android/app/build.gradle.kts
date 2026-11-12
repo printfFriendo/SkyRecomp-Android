@@ -11,8 +11,8 @@ android {
         applicationId = "com.apolinario.skyrecomp"
         minSdk = 29
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 5
+        versionName = "1.0.5"
 
         ndk {
             abiFilters += listOf("arm64-v8a")

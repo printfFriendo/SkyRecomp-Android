@@ -1,10 +1,11 @@
 # Android Port State (Checkpoint de Progresso)
 
 ## Status Atual
-- **Fase Ativa:** Todas as Fases (1 a 5) + Blindagem de Inicialização & Sensores de Giroscópio Concluídos!
-- **Últimos Arquivos Modificados/Criados:** `MainActivity.java`, `runtime/hle/input.c`, `runtime/nvn/vulkan/device.c`, `runtime/paths.c`, `runtime/platform/linux.c`
+- **Fase Ativa:** Todas as Fases (1 a 5) + Sensores de Movimento + Cutout/Haptics + Suporte Nativo a Mods Concluídos!
+- **Últimos Arquivos Modificados/Criados:** `runtime/mods.c`, `runtime/ui/mods_ui.mm`, `android/app/build.gradle.kts`, `MainActivity.java`
 - **Artefatos Finais:**
-  - `android/app/build/outputs/apk/release/app-release.apk` (8.95 MB, **Assinado** com APK Signature Scheme v2, alinhado com `zipalign` 4-byte boundary).
+  - `android/app/build/outputs/apk/release/app-release.apk` (Versão 1.0.5, **Assinado** com APK Signature Scheme v2, alinhado com `zipalign` 4-byte boundary).
+  - Suporte a Mods Mobile: Camada RomFS customizada em `/sdcard/Android/data/com.apolinario.skyrecomp/files/mods/`, instruções mobile dedicadas no menu e toasts nativos via `SDL_ShowAndroidToast`.
   - Suporte a Sensores: Giroscópio e Acelerômetro nativos do smartphone integrados ao SixAxis/MotionPlus.
   - Blindagem de Inicialização: Preload de `libc++_shared.so`, criação automática da pasta de dados pelo Java, fallbacks para Vulkan 1.1/1.2 em GPUs móveis e remoção de unmap destrutivo no `mmap`.
 - **Verificação Estática & Build:**
@@ -100,6 +101,9 @@
 - `tools/gen_smaa.py`, `third_party/smaa/smaa_hlsl.inc`: Gerador do include de shader SMAA.
 - `tools/skygame_stubs.c`: Stubs de tabelas de símbolos para compilação antes da extração da ROM.
 - `android/app/src/main/jniLibs/arm64-v8a/libskygame.so`: Biblioteca nativa do jogo compilada e embarcada.
+- `runtime/mods.c`: Integração de toast nativo (`SDL_ShowAndroidToast`) ao solicitar abertura da pasta de mods no Android.
+- `runtime/ui/mods_ui.mm`: Painel de ajuda e instruções mobile dedicadas para instalação de mods RomFS no Android.
+- `android/app/build.gradle.kts`: Incrementado `versionCode` (5) e `versionName` (1.0.5).
 
 ---
 

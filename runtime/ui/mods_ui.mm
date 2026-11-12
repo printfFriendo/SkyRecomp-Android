@@ -58,11 +58,18 @@ void tab_mods(float scale) {
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.75f, 0.75f, 0.70f, 1.0f));
         ImGui::TextUnformatted("No mods detected in the 'mods/' folder.");
         ImGui::Spacing();
+#if defined(__ANDROID__)
+        ImGui::TextUnformatted("How to install mods on Android:");
+        ImGui::BulletText("Place mod folders into: /sdcard/Android/data/com.apolinario.skyrecomp/files/mods/");
+        ImGui::BulletText("Each mod folder should contain a 'romfs/' subfolder (e.g. 'mods/MyMod/romfs/').");
+        ImGui::BulletText("Tap 'Rescan' to detect newly placed mods, then 'Apply & Restart Game'.");
+#else
         ImGui::TextUnformatted("How to install mods:");
         ImGui::BulletText("Click 'Open Mods Folder' above.");
         ImGui::BulletText("Paste your mod folder inside (e.g. 'mods/MyMod/').");
         ImGui::BulletText("The mod folder should contain a 'romfs/' directory and/or 'romfs_metadata.bin'.");
         ImGui::BulletText("Click 'Rescan' to detect the mod, then restart the game to load it.");
+#endif
         ImGui::PopStyleColor();
     } else {
         ImGui::TextColored(ImVec4(0.93f, 0.76f, 0.33f, 1.0f), "Installed Mods (%d detected):", count);

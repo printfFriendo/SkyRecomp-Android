@@ -212,3 +212,17 @@ build_android.bat logcat
 If an unhandled exception or native signal occurs, SkyRecomp captures the registers and stack trace using Bionic's `<unwind.h>` and writes them to:
 - `/sdcard/Android/data/com.apolinario.skyrecomp/files/skyrecomp_crash.log`
 - Android Logcat tag `SkyRecomp` with log level `FATAL`.
+
+---
+
+## 14. Mod Management (RomFS Layering)
+
+SkyRecomp on Android supports RomFS mod layering (textures, models, translations, gameplay tweaks):
+1. Place mod folders inside the app files directory:
+   ```
+   /sdcard/Android/data/com.apolinario.skyrecomp/files/mods/<ModName>/romfs/
+   ```
+2. Open the in-game menu and navigate to the **Mods** tab.
+3. Tap **Rescan** to detect newly placed mods.
+4. Enable or prioritize mods in the list and tap **Apply & Restart Game**.
+5. Tapping **Open Mods Folder** on Android displays an on-screen toast with the exact file path to navigate to with your file manager.
