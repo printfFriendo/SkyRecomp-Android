@@ -17,6 +17,7 @@ static void trigger_touch_haptic(void) {}
 #endif
 
 extern "C" void menu_toggle(void);
+extern "C" bool input_has_gamepad(void);
 
 enum {
     BTN_A = 0, BTN_B, BTN_X, BTN_Y, BTN_LSTICK, BTN_RSTICK, BTN_L, BTN_R, BTN_ZL, BTN_ZR, BTN_PLUS, BTN_MINUS,
@@ -38,6 +39,7 @@ struct TouchFinger {
 #define MAX_FINGERS 10
 static TouchFinger g_fingers[MAX_FINGERS];
 static bool g_enabled = true;
+static bool g_auto_hide = false;
 static bool g_user_haptics = true;
 static float g_user_opacity = 0.65f;
 static float g_user_scale = 1.0f;
@@ -129,6 +131,14 @@ void touch_overlay_set_enabled(bool enabled) {
     if (!enabled) {
         touch_overlay_init();
     }
+}
+
+bool touch_overlay_get_auto_hide(void) {
+    return g_auto_hide;
+}
+
+void touch_overlay_set_auto_hide(bool auto_hide) {
+    g_auto_hide = auto_hide;
 }
 
 static inline float dist_sq(float x1, float y1, float x2, float y2) {
@@ -231,6 +241,7 @@ static void update_state(float W, float H, float s) {
 
 bool touch_overlay_handle_event(const SDL_Event *e) {
     if (!g_enabled) return false;
+    if (g_auto_hide && input_has_gamepad()) return false;
 
     float W = g_cur_w, H = g_cur_h;
     float s = H / 1080.0f;
@@ -331,6 +342,7 @@ static void draw_capsule_btn(ImDrawList *dl, float x, float y, float w, float h,
 
 void touch_overlay_render(float display_w, float display_h, float scale) {
     if (!g_enabled) return;
+    if (g_auto_hide && input_has_gamepad()) return;
 
     g_cur_w = display_w;
     g_cur_h = display_h;

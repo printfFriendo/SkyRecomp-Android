@@ -4,6 +4,9 @@
 // d-pad, K/J/L/I = A/B/X/Y, Q/E = L/R, 1/3 = ZL/ZR, Enter / Backspace = Plus / Minus, numpad 8/4/5/6 right stick;
 // controller by position, Switch A = east).
 #include <SDL3/SDL.h>
+#if defined(__ANDROID__)
+#include <SDL3/SDL_system.h>
+#endif
 #include <ctype.h>
 #include <math.h>
 #include <pthread.h>
@@ -47,6 +50,9 @@ static _Atomic int32_t key_lx, key_ly, key_rx, key_ry, pad_lx, pad_ly, pad_rx, p
 static _Atomic bool mouse_btn_left, mouse_btn_right, mouse_btn_middle, mouse_btn_x1, mouse_btn_x2;
 static uint8_t keys_down[SDL_SCANCODE_COUNT];
 static SDL_Gamepad *pad;
+bool input_has_gamepad(void) {
+    return pad != NULL;
+}
 static _Atomic int64_t sampling;
 static _Atomic bool mouse_captured;
 static bool mouse_skip_motion;
@@ -293,7 +299,13 @@ static void motion_sample(const SDL_GamepadSensorEvent *s) {
 static void pad_opened(void) {  // its name, its button prompts, its gyro (DualSense, DualShock 4, Switch controllers)
     bool gyro = SDL_GamepadHasSensor(pad, SDL_SENSOR_GYRO) && SDL_SetGamepadSensorEnabled(pad, SDL_SENSOR_GYRO, true);
     if (gyro && SDL_GamepadHasSensor(pad, SDL_SENSOR_ACCEL)) SDL_SetGamepadSensorEnabled(pad, SDL_SENSOR_ACCEL, true);
-    LOG("[input] gamepad: %s (%s)\n", SDL_GetGamepadName(pad), gyro ? "gyro" : "no gyro");
+    const char *pname = SDL_GetGamepadName(pad);
+    LOG("[input] gamepad: %s (%s)\n", pname ? pname : "controller", gyro ? "gyro" : "no gyro");
+#if defined(__ANDROID__)
+    char msg[128];
+    snprintf(msg, sizeof(msg), "Controller Connected: %s", pname ? pname : "Gamepad");
+    SDL_ShowAndroidToast(msg, 0, -1, 0, 0);
+#endif
     note_family();
     motion_reset(gyro);
 }
@@ -302,6 +314,17 @@ void input_handle_event(const SDL_Event *e) {
     static bool scanned;  // pads present at startup: their ADDED event may have gone to the start screen's loop
     if (!scanned) {
         scanned = true;
+#if defined(__ANDROID__)
+        const char *pref = SDL_GetAndroidExternalStoragePath();
+        if (pref) {
+            char map_path[512];
+            snprintf(map_path, sizeof(map_path), "%s/gamecontrollerdb.txt", pref);
+            int added = SDL_AddGamepadMappingsFromFile(map_path);
+            if (added > 0) {
+                LOG("[input] Loaded %d custom gamepad mappings from %s\n", added, map_path);
+            }
+        }
+#endif
         int n = 0;
         SDL_JoystickID *ids = SDL_GetGamepads(&n);
         if (n > 0 && !pad && (pad = SDL_OpenGamepad(ids[0]))) pad_opened();
@@ -392,7 +415,15 @@ void input_handle_event(const SDL_Event *e) {
         if (!pad && (pad = SDL_OpenGamepad(e->gdevice.which))) pad_opened();
         break;
     case SDL_EVENT_GAMEPAD_REMOVED:
-        if (pad && SDL_GetGamepadID(pad) == e->gdevice.which) { SDL_CloseGamepad(pad); pad = NULL; note_family(); motion_reset(false); }
+        if (pad && SDL_GetGamepadID(pad) == e->gdevice.which) {
+            SDL_CloseGamepad(pad);
+            pad = NULL;
+            note_family();
+            motion_reset(false);
+#if defined(__ANDROID__)
+            SDL_ShowAndroidToast("Controller Disconnected", 0, -1, 0, 0);
+#endif
+        }
         recompute_pad();
         break;
     case SDL_EVENT_GAMEPAD_AXIS_MOTION: case SDL_EVENT_GAMEPAD_BUTTON_DOWN: case SDL_EVENT_GAMEPAD_BUTTON_UP:

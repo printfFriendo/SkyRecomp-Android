@@ -1,10 +1,12 @@
 # Android Port State (Checkpoint de Progresso)
 
 ## Status Atual
-- **Fase Ativa:** Todas as Fases (1 a 5) + Sensores de Movimento + Cutout/Haptics + Suporte Nativo a Mods Concluídos!
-- **Últimos Arquivos Modificados/Criados:** `runtime/mods.c`, `runtime/ui/mods_ui.mm`, `android/app/build.gradle.kts`, `MainActivity.java`
+- **Fase Ativa:** Todas as Fases (1 a 5) + 120Hz Display Mode + Auto-Hide Touch on Gamepad + Custom Controller Mappings Concluídos!
+- **Últimos Arquivos Modificados/Criados:** `MainActivity.java`, `runtime/hle/input.c`, `runtime/ui/touch_overlay.h`, `runtime/ui/touch_overlay.cpp`, `runtime/ui/controls_ui.mm`, `runtime/settings.h`, `runtime/settings.c`, `android/app/build.gradle.kts`
 - **Artefatos Finais:**
-  - `android/app/build/outputs/apk/release/app-release.apk` (Versão 1.0.5, **Assinado** com APK Signature Scheme v2, alinhado com `zipalign` 4-byte boundary).
+  - `android/app/build/outputs/apk/release/app-release.apk` (Versão 1.0.6, **Assinado** com APK Signature Scheme v2, alinhado com `zipalign` 4-byte boundary).
+  - Suporte a Altas Taxas de Atualização (90Hz, 120Hz, 144Hz): Desbloqueio dinâmico do display mode nativo via Android WindowManager.
+  - Integração de Gamepads e Auto-Hide: Ocultação automática de botões virtuais ao plugar controle físico, avisos em toasts nativos e leitor de base de dados `gamecontrollerdb.txt`.
   - Suporte a Mods Mobile: Camada RomFS customizada em `/sdcard/Android/data/com.apolinario.skyrecomp/files/mods/`, instruções mobile dedicadas no menu e toasts nativos via `SDL_ShowAndroidToast`.
   - Suporte a Sensores: Giroscópio e Acelerômetro nativos do smartphone integrados ao SixAxis/MotionPlus.
   - Blindagem de Inicialização: Preload de `libc++_shared.so`, criação automática da pasta de dados pelo Java, fallbacks para Vulkan 1.1/1.2 em GPUs móveis e remoção de unmap destrutivo no `mmap`.
@@ -103,7 +105,12 @@
 - `android/app/src/main/jniLibs/arm64-v8a/libskygame.so`: Biblioteca nativa do jogo compilada e embarcada.
 - `runtime/mods.c`: Integração de toast nativo (`SDL_ShowAndroidToast`) ao solicitar abertura da pasta de mods no Android.
 - `runtime/ui/mods_ui.mm`: Painel de ajuda e instruções mobile dedicadas para instalação de mods RomFS no Android.
-- `android/app/build.gradle.kts`: Incrementado `versionCode` (5) e `versionName` (1.0.5).
+- `runtime/hle/input.c`: Detecção de gamepads, suporte a carregamento dinâmico de `gamecontrollerdb.txt`, toasts de conexão/desconexão e export de `input_has_gamepad`.
+- `runtime/ui/touch_overlay.*`: Suporte a auto-ocultação inteligente de overlay de toque quando gamepad físico estiver ativo.
+- `runtime/ui/controls_ui.mm`: Checkbox para alternar auto-hide de controles táteis com controle físico.
+- `runtime/settings.*`: Persistência de `touch_auto_hide` no arquivo `skyrecomp.ini`.
+- `android/app/src/main/java/com/apolinario/skyrecomp/MainActivity.java`: Desbloqueio dinâmico de taxa de atualização máxima da tela (90Hz / 120Hz / 144Hz) via `Display.Mode`.
+- `android/app/build.gradle.kts`: Incrementado `versionCode` (6) e `versionName` (1.0.6).
 
 ---
 

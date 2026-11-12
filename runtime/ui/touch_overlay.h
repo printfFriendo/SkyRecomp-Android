@@ -19,6 +19,8 @@ void touch_overlay_render(float display_w, float display_h, float scale);
 // Toggle or query touch overlay visibility
 bool touch_overlay_is_enabled(void);
 void touch_overlay_set_enabled(bool enabled);
+bool touch_overlay_get_auto_hide(void);
+void touch_overlay_set_auto_hide(bool auto_hide);
 
 // User customization: opacity (0.1 - 1.0) and scale (0.5 - 2.0)
 float touch_overlay_get_opacity(void);

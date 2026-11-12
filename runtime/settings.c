@@ -57,6 +57,7 @@ Settings g_settings = {
 #if defined(__ANDROID__)
     .touch_enabled = true,
     .touch_haptics = true,
+    .touch_auto_hide = false,
     .touch_opacity = 0.65f,
     .touch_scale = 1.0f,
     .touch_lstick_x = 0.0f,
@@ -275,6 +276,10 @@ void settings_load(void) {
             g_settings.touch_haptics = atoi(val) != 0;
             touch_overlay_set_haptics(g_settings.touch_haptics);
         }
+        else if (!strcmp(key, "touch_auto_hide")) {
+            g_settings.touch_auto_hide = atoi(val) != 0;
+            touch_overlay_set_auto_hide(g_settings.touch_auto_hide);
+        }
         else if (!strcmp(key, "touch_opacity")) {
             g_settings.touch_opacity = (float)atof(val);
             touch_overlay_set_opacity(g_settings.touch_opacity);
@@ -426,6 +431,7 @@ void settings_save(void) {
 #if defined(__ANDROID__)
     fprintf(f, "touch_enabled = %d\n", touch_overlay_is_enabled() ? 1 : 0);
     fprintf(f, "touch_haptics = %d\n", touch_overlay_get_haptics() ? 1 : 0);
+    fprintf(f, "touch_auto_hide = %d\n", touch_overlay_get_auto_hide() ? 1 : 0);
     fprintf(f, "touch_opacity = %.2f\n", touch_overlay_get_opacity());
     fprintf(f, "touch_scale = %.2f\n", touch_overlay_get_scale());
     float lx, ly, rx, ry, fx, fy, dx, dy;

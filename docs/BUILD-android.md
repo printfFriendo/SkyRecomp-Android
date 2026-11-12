@@ -126,7 +126,9 @@ The Android port includes a custom touch overlay:
 - **Shoulder Buttons (L, ZL, R, ZR)**: Targeting, shield, sword sheath.
 - **Utility (+, -, Menu)**: Inventory, map, settings.
 - **Android Back Gesture / Button**: Opens or toggles the in-game settings menu.
-- **Physical Gamepads**: Bluetooth or USB controllers (Xbox, DualShock/DualSense, Switch Pro Controller) are recognized automatically via SDL3.
+- **Physical Gamepads & Telescopic Grips**: Bluetooth or USB-C controllers (Xbox, DualShock/DualSense, Switch Pro Controller, Razer Kishi, GameSir G8 Galileo, Backbone One) are recognized automatically via SDL3 with connection toasts. Place custom mappings in `/sdcard/Android/data/com.apolinario.skyrecomp/files/gamecontrollerdb.txt` to support any generic or obscure controller.
+- **Auto-Hide Touch Controls**: Optional toggle in the *Controls* tab automatically hides the on-screen virtual buttons and sticks as soon as a physical controller is connected, restoring them immediately when disconnected.
+- **High Refresh Rate Displays (90Hz / 120Hz / 144Hz)**: SkyRecomp queries display modes and automatically sets the highest refresh rate supported by your device, allowing buttery smooth 120 FPS simulation when configured in video settings.
 - **Gyroscope & Motion Aiming**: Physical device sensors (`SDL_SENSOR_GYRO` and `SDL_SENSOR_ACCEL`) are mapped to Switch MotionPlus / SixAxis aim and calibrated via `gyro_sens`.
 - **Haptic Tactile Feedback**: Physical device micro-vibration triggers on virtual button touch for tactile confirmation.
 - **Display Cutout & Safe Area**: Fullscreen layout extends past camera hole-punches (`SHORT_EDGES` mode), and an adjustable Safe Area Inset slider ensures buttons never collide with rounded corners or notches.

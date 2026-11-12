@@ -66,6 +66,12 @@ extern "C" void controls_bindings_draw(float scale) {
         settings_save();
     }
     if (touch_enabled) {
+        bool auto_hide = touch_overlay_get_auto_hide();
+        if (ImGui::Checkbox("Auto-Hide Touch Controls when Controller Connected", &auto_hide)) {
+            touch_overlay_set_auto_hide(auto_hide);
+            g_settings.touch_auto_hide = auto_hide;
+            settings_save();
+        }
         bool haptics = touch_overlay_get_haptics();
         if (ImGui::Checkbox("Haptic Feedback (Vibration on Touch)", &haptics)) {
             touch_overlay_set_haptics(haptics);

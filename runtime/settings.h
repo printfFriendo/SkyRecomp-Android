@@ -91,6 +91,7 @@ typedef struct {
 #if defined(__ANDROID__)
     bool touch_enabled;
     bool touch_haptics;
+    bool touch_auto_hide;
     float touch_opacity;
     float touch_scale;
     float touch_lstick_x, touch_lstick_y;

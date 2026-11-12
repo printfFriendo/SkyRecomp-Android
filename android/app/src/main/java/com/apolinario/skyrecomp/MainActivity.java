@@ -8,6 +8,7 @@ import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.os.VibratorManager;
 import android.util.Log;
+import android.view.Display;
 import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
@@ -30,6 +31,9 @@ public class MainActivity extends SDLActivity {
 
             // Keep screen on while playing
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
+            // Request highest display refresh rate (90Hz / 120Hz / 144Hz) for smooth high FPS gameplay
+            configureHighRefreshRate();
 
             applyImmersiveMode();
 
@@ -74,6 +78,39 @@ public class MainActivity extends SDLActivity {
                     | View.SYSTEM_UI_FLAG_FULLSCREEN);
             }
         } catch (Exception ignored) {}
+    }
+
+    private void configureHighRefreshRate() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            try {
+                Display display = null;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    display = getDisplay();
+                } else {
+                    WindowManager wm = (WindowManager) getSystemService(Context.WINDOW_SERVICE);
+                    if (wm != null) display = wm.getDefaultDisplay();
+                }
+                if (display != null) {
+                    Display.Mode[] modes = display.getSupportedModes();
+                    Display.Mode bestMode = null;
+                    float maxRate = 0.0f;
+                    for (Display.Mode mode : modes) {
+                        if (mode.getRefreshRate() > maxRate) {
+                            maxRate = mode.getRefreshRate();
+                            bestMode = mode;
+                        }
+                    }
+                    if (bestMode != null && maxRate > 60.0f) {
+                        WindowManager.LayoutParams params = getWindow().getAttributes();
+                        params.preferredDisplayModeId = bestMode.getModeId();
+                        getWindow().setAttributes(params);
+                        Log.i(TAG, "Configured high refresh rate mode: " + maxRate + " Hz (mode ID " + bestMode.getModeId() + ")");
+                    }
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "Could not set high refresh rate mode: " + e.getMessage());
+            }
+        }
     }
 
     @Override
