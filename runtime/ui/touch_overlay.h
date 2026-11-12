@@ -26,6 +26,15 @@ void touch_overlay_set_opacity(float opacity);
 float touch_overlay_get_scale(void);
 void touch_overlay_set_scale(float scale);
 
+// Haptic feedback (tactile vibration)
+bool touch_overlay_get_haptics(void);
+void touch_overlay_set_haptics(bool enabled);
+
+// Layout positioning offsets (relative to default layout)
+void touch_overlay_get_offsets(float *lx, float *ly, float *rx, float *ry, float *fx, float *fy, float *dx, float *dy);
+void touch_overlay_set_offsets(float lx, float ly, float rx, float ry, float fx, float fy, float dx, float dy);
+void touch_overlay_reset_offsets(void);
+
 // Feed into runtime/hle/input.c
 void touch_set_buttons(uint64_t buttons);
 void touch_set_sticks(int32_t lx, int32_t ly, int32_t rx, int32_t ry);

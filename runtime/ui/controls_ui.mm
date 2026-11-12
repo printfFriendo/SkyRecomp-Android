@@ -66,6 +66,11 @@ extern "C" void controls_bindings_draw(float scale) {
         settings_save();
     }
     if (touch_enabled) {
+        bool haptics = touch_overlay_get_haptics();
+        if (ImGui::Checkbox("Haptic Feedback (Vibration on Touch)", &haptics)) {
+            touch_overlay_set_haptics(haptics);
+            settings_save();
+        }
         float opacity = touch_overlay_get_opacity();
         if (ImGui::SliderFloat("Touch Opacity", &opacity, 0.1f, 1.0f, "%.2f")) {
             touch_overlay_set_opacity(opacity);
@@ -75,6 +80,29 @@ extern "C" void controls_bindings_draw(float scale) {
         if (ImGui::SliderFloat("Touch Button Scale", &t_scale, 0.5f, 2.0f, "%.2f")) {
             touch_overlay_set_scale(t_scale);
             settings_save();
+        }
+
+        if (ImGui::TreeNode("Customize Button Positions (Layout)")) {
+            float lx, ly, rx, ry, fx, fy, dx, dy;
+            touch_overlay_get_offsets(&lx, &ly, &rx, &ry, &fx, &fy, &dx, &dy);
+            bool changed = false;
+            changed |= ImGui::SliderFloat("Left Stick X", &lx, -180.0f, 180.0f, "%.0f px");
+            changed |= ImGui::SliderFloat("Left Stick Y", &ly, -180.0f, 180.0f, "%.0f px");
+            changed |= ImGui::SliderFloat("Right Stick X", &rx, -180.0f, 180.0f, "%.0f px");
+            changed |= ImGui::SliderFloat("Right Stick Y", &ry, -180.0f, 180.0f, "%.0f px");
+            changed |= ImGui::SliderFloat("Action Buttons X", &fx, -180.0f, 180.0f, "%.0f px");
+            changed |= ImGui::SliderFloat("Action Buttons Y", &fy, -180.0f, 180.0f, "%.0f px");
+            changed |= ImGui::SliderFloat("D-Pad X", &dx, -180.0f, 180.0f, "%.0f px");
+            changed |= ImGui::SliderFloat("D-Pad Y", &dy, -180.0f, 180.0f, "%.0f px");
+            if (changed) {
+                touch_overlay_set_offsets(lx, ly, rx, ry, fx, fy, dx, dy);
+                settings_save();
+            }
+            if (ImGui::Button("Reset Layout to Default")) {
+                touch_overlay_reset_offsets();
+                settings_save();
+            }
+            ImGui::TreePop();
         }
     }
     ImGui::Spacing();

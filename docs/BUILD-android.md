@@ -128,11 +128,32 @@ The Android port includes a custom touch overlay:
 - **Android Back Gesture / Button**: Opens or toggles the in-game settings menu.
 - **Physical Gamepads**: Bluetooth or USB controllers (Xbox, DualShock/DualSense, Switch Pro Controller) are recognized automatically via SDL3.
 - **Gyroscope & Motion Aiming**: Physical device sensors (`SDL_SENSOR_GYRO` and `SDL_SENSOR_ACCEL`) are mapped to Switch MotionPlus / SixAxis aim and calibrated via `gyro_sens`.
-- **Touch Customization**: Toggle on-screen controls, adjust button opacity (10% to 100%), and button scale (0.5x to 2.0x) directly in the in-game *Controls* menu tab, with preferences automatically saved to `skyrecomp.ini`.
+- **Haptic Tactile Feedback**: Physical device micro-vibration triggers on virtual button touch for tactile confirmation.
+- **Touch Layout Customization**: Toggle on-screen controls, adjust opacity (10% to 100%), scale (0.5x to 2.0x), and customize the physical position (X/Y offsets) of sticks, action buttons, and D-Pad directly in the in-game *Controls* tab, with preferences automatically saved to `skyrecomp.ini`.
 
 ---
 
-## 7. Recompiling Game Code for Android (tools/build_game_android.py)
+## 7. Performance Presets for Mobile SoCs
+
+Under the in-game *Video* settings tab, Android users can select one-tap presets:
+- **Battery Saver**: 50% internal resolution (540p) + AMD FSR 1 + Anti-Aliasing Off (ideal for mid-range SoCs and extended battery life).
+- **Balanced**: 75% internal resolution (810p) + AMD FSR 1 + FXAA (sharp image with smooth performance).
+- **Performance**: 100% Native display match + AMD FSR 1 + Anti-Aliasing Off.
+- **Ultra**: 100% Native display match + AMD FSR 1 + Subpixel Morphological Anti-Aliasing (SMAA) for flagship devices (Snapdragon 8 Gen 2/3, Dimensity 9200+).
+
+---
+
+## 8. Custom Vulkan Driver Support (Adreno / Turnip)
+
+For devices with Qualcomm Adreno GPUs, custom Mesa Turnip drivers can be used by placing the driver shared library as:
+```
+/sdcard/Android/data/com.apolinario.skyrecomp/files/libvulkan_custom.so
+```
+Or by specifying the environment variable `SKYRECOMP_VK_DRIVER=<path>`. SkyRecomp detects and loads the custom driver dynamically prior to Vulkan instance creation.
+
+---
+
+## 9. Recompiling Game Code for Android (tools/build_game_android.py)
 
 To build the static C recompilation of the game code (`libskygame.so`) for Android ARM64:
 
@@ -151,13 +172,13 @@ The script automatically locates the Android NDK, runs parallel C generation (`t
 
 ---
 
-## 8. Background Shader Cache Persistence
+## 10. Background Shader Cache Persistence
 
 On Android, Vulkan pipeline caches are automatically serialized to storage whenever the application enters the background or loses focus (`SDL_EVENT_WILL_ENTER_BACKGROUND` / `SDL_EVENT_DID_ENTER_BACKGROUND`). This ensures compiled shaders and pipeline states are preserved across app switches without frame drops or recompilation stutter upon resume.
 
 ---
 
-## 9. Diagnostics & Troubleshooting
+## 11. Diagnostics & Troubleshooting
 
 ### Real-Time Logcat Monitoring
 To view logs, warnings, and shader compilation messages in real-time:

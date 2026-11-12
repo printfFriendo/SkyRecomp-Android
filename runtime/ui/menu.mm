@@ -585,6 +585,31 @@ static void tab_display(void) {
                "Enables the included lighting and colour effects. Off disables the effects while playing and prevents loading ReShade on the next launch. If started with ReShade off, close and reopen the application to enable it."))
         settings_save();
 #endif
+#if defined(__ANDROID__)
+    static const char *perf_presets[] = {"Custom", "Battery Saver (50% + FSR1)", "Balanced (75% + FSR1)", "Performance (Match Native)", "Ultra (Match + SMAA)"};
+    static int current_preset = 0;
+    if (opt_choice("Performance Preset", &current_preset, perf_presets, 5, 0,
+                   "Quick 1-tap graphics preset for your Android device's GPU and battery thermals.")) {
+        if (current_preset == 1) {
+            g_settings.res_mode = RES_Q50;
+            g_settings.upscaler = UPSCALE_FSR1;
+            g_settings.antialias = AA_OFF;
+        } else if (current_preset == 2) {
+            g_settings.res_mode = RES_Q75;
+            g_settings.upscaler = UPSCALE_FSR1;
+            g_settings.antialias = AA_FXAA;
+        } else if (current_preset == 3) {
+            g_settings.res_mode = RES_MATCH;
+            g_settings.upscaler = UPSCALE_FSR1;
+            g_settings.antialias = AA_OFF;
+        } else if (current_preset == 4) {
+            g_settings.res_mode = RES_MATCH;
+            g_settings.upscaler = UPSCALE_FSR1;
+            g_settings.antialias = AA_SMAA;
+        }
+        settings_save();
+    }
+#endif
     // display order -> RES_* (the ini / enum order predates the menu order)
     // (up to 4x: 7680 x 4320, 8K - more only ran out of GPU memory, and sat next to 75% in the list)
     // (Match display in the middle: left from it 75% / 50% / 25%, right Dynamic then 1x-4x; user 2026-10-11)

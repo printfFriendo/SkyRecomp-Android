@@ -5,6 +5,17 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#if defined(__ANDROID__)
+#include <SDL3/SDL_system.h>
+static void trigger_touch_haptic(void) {
+    if (touch_overlay_get_haptics()) {
+        SDL_SendAndroidMessage(0x8001, 0);
+    }
+}
+#else
+static void trigger_touch_haptic(void) {}
+#endif
+
 extern "C" void menu_toggle(void);
 
 enum {
@@ -27,8 +38,13 @@ struct TouchFinger {
 #define MAX_FINGERS 10
 static TouchFinger g_fingers[MAX_FINGERS];
 static bool g_enabled = true;
+static bool g_user_haptics = true;
 static float g_user_opacity = 0.65f;
 static float g_user_scale = 1.0f;
+static float g_lstick_x = 0.0f, g_lstick_y = 0.0f;
+static float g_rstick_x = 0.0f, g_rstick_y = 0.0f;
+static float g_face_x = 0.0f, g_face_y = 0.0f;
+static float g_dpad_x = 0.0f, g_dpad_y = 0.0f;
 static uint64_t g_active_buttons = 0;
 static int32_t g_stick_lx = 0, g_stick_ly = 0;
 static int32_t g_stick_rx = 0, g_stick_ry = 0;
@@ -46,6 +62,38 @@ void touch_overlay_set_scale(float scale) {
     if (scale < 0.5f) scale = 0.5f;
     if (scale > 2.0f) scale = 2.0f;
     g_user_scale = scale;
+}
+
+bool touch_overlay_get_haptics(void) { return g_user_haptics; }
+void touch_overlay_set_haptics(bool enabled) { g_user_haptics = enabled; }
+
+void touch_overlay_get_offsets(float *lx, float *ly, float *rx, float *ry, float *fx, float *fy, float *dx, float *dy) {
+    if (lx) *lx = g_lstick_x;
+    if (ly) *ly = g_lstick_y;
+    if (rx) *rx = g_rstick_x;
+    if (ry) *ry = g_rstick_y;
+    if (fx) *fx = g_face_x;
+    if (fy) *fy = g_face_y;
+    if (dx) *dx = g_dpad_x;
+    if (dy) *dy = g_dpad_y;
+}
+
+void touch_overlay_set_offsets(float lx, float ly, float rx, float ry, float fx, float fy, float dx, float dy) {
+    g_lstick_x = lx;
+    g_lstick_y = ly;
+    g_rstick_x = rx;
+    g_rstick_y = ry;
+    g_face_x = fx;
+    g_face_y = fy;
+    g_dpad_x = dx;
+    g_dpad_y = dy;
+}
+
+void touch_overlay_reset_offsets(void) {
+    g_lstick_x = g_lstick_y = 0.0f;
+    g_rstick_x = g_rstick_y = 0.0f;
+    g_face_x = g_face_y = 0.0f;
+    g_dpad_x = g_dpad_y = 0.0f;
 }
 
 static inline ImU32 modulate_alpha(ImU32 col, float factor) {
@@ -83,15 +131,15 @@ static inline float dist_sq(float x1, float y1, float x2, float y2) {
 static int hit_test(float px, float py, float W, float H, float s) {
     s *= g_user_scale;
     // 1. Left Stick (Base center)
-    float lx = 140.0f * s, ly = H - 140.0f * s, lr = 90.0f * s;
+    float lx = (140.0f + g_lstick_x) * s, ly = (H - 140.0f * s) + g_lstick_y * s, lr = 90.0f * s;
     if (dist_sq(px, py, lx, ly) <= lr * lr) return CTRL_LSTICK;
 
     // 2. Right Stick (Base center)
-    float rx = W - 280.0f * s, ry = H - 140.0f * s, rr = 80.0f * s;
+    float rx = (W - 280.0f * s) + g_rstick_x * s, ry = (H - 140.0f * s) + g_rstick_y * s, rr = 80.0f * s;
     if (dist_sq(px, py, rx, ry) <= rr * rr) return CTRL_RSTICK;
 
     // 3. Face buttons (A, B, X, Y)
-    float fcx = W - 110.0f * s, fcy = H - 140.0f * s;
+    float fcx = (W - 110.0f * s) + g_face_x * s, fcy = (H - 140.0f * s) + g_face_y * s;
     float foff = 46.0f * s, fr = 32.0f * s;
     if (dist_sq(px, py, fcx + foff, fcy) <= fr * fr) return BTN_A;
     if (dist_sq(px, py, fcx, fcy + foff) <= fr * fr) return BTN_B;
@@ -99,7 +147,7 @@ static int hit_test(float px, float py, float W, float H, float s) {
     if (dist_sq(px, py, fcx - foff, fcy) <= fr * fr) return BTN_Y;
 
     // 4. D-Pad (Up, Down, Left, Right)
-    float dcx = 140.0f * s, dcy = H - 290.0f * s;
+    float dcx = (140.0f + g_dpad_x) * s, dcy = (H - 290.0f * s) + g_dpad_y * s;
     float doff = 42.0f * s, dr = 28.0f * s;
     if (dist_sq(px, py, dcx, dcy - doff) <= dr * dr) return BTN_UP;
     if (dist_sq(px, py, dcx, dcy + doff) <= dr * dr) return BTN_DOWN;
@@ -131,8 +179,8 @@ static void update_state(float W, float H, float s) {
     uint64_t buttons = 0;
     int32_t lx = 0, ly = 0, rx = 0, ry = 0;
 
-    float l_cx = 140.0f * s, l_cy = H - 140.0f * s, l_r = 75.0f * s;
-    float r_cx = W - 280.0f * s, r_cy = H - 140.0f * s, r_r = 65.0f * s;
+    float l_cx = (140.0f + g_lstick_x) * s, l_cy = (H - 140.0f * s) + g_lstick_y * s, l_r = 75.0f * s;
+    float r_cx = (W - 280.0f * s) + g_rstick_x * s, r_cy = (H - 140.0f * s) + g_rstick_y * s, r_r = 65.0f * s;
 
     for (int i = 0; i < MAX_FINGERS; i++) {
         if (!g_fingers[i].active) continue;
@@ -185,6 +233,8 @@ bool touch_overlay_handle_event(const SDL_Event *e) {
         float py = e->tfinger.y * H;
         int cid = hit_test(px, py, W, H, s);
         if (cid < 0) return false;
+
+        trigger_touch_haptic();
 
         if (cid == CTRL_MENU) {
             menu_toggle();
@@ -282,7 +332,7 @@ void touch_overlay_render(float display_w, float display_h, float scale) {
     ImDrawList *dl = ImGui::GetForegroundDrawList();
 
     // 1. Left Analog Stick (Movement)
-    float lx = 140.0f * s, ly = H - 140.0f * s, lr = 75.0f * s;
+    float lx = (140.0f + g_lstick_x) * s, ly = (H - 140.0f * s) + g_lstick_y * s, lr = 75.0f * s;
     dl->AddCircleFilled(ImVec2(lx, ly), lr, modulate_alpha(IM_COL32(25, 25, 25, 80), g_user_opacity));
     dl->AddCircle(ImVec2(lx, ly), lr, modulate_alpha(IM_COL32(180, 180, 180, 100), g_user_opacity), 0, 2.0f);
 
@@ -292,7 +342,7 @@ void touch_overlay_render(float display_w, float display_h, float scale) {
     dl->AddCircle(ImVec2(thumb_lx, thumb_ly), 32.0f * s, modulate_alpha(IM_COL32(255, 255, 255, 200), g_user_opacity), 0, 2.0f);
 
     // 2. Right Analog Stick (Camera / Sword)
-    float rx = W - 280.0f * s, ry = H - 140.0f * s, rr = 65.0f * s;
+    float rx = (W - 280.0f * s) + g_rstick_x * s, ry = (H - 140.0f * s) + g_rstick_y * s, rr = 65.0f * s;
     dl->AddCircleFilled(ImVec2(rx, ry), rr, modulate_alpha(IM_COL32(25, 25, 25, 80), g_user_opacity));
     dl->AddCircle(ImVec2(rx, ry), rr, modulate_alpha(IM_COL32(180, 180, 180, 100), g_user_opacity), 0, 2.0f);
 
@@ -302,7 +352,7 @@ void touch_overlay_render(float display_w, float display_h, float scale) {
     dl->AddCircle(ImVec2(thumb_rx, thumb_ry), 28.0f * s, modulate_alpha(IM_COL32(255, 255, 255, 200), g_user_opacity), 0, 2.0f);
 
     // 3. Face buttons (A, B, X, Y)
-    float fcx = W - 110.0f * s, fcy = H - 140.0f * s;
+    float fcx = (W - 110.0f * s) + g_face_x * s, fcy = (H - 140.0f * s) + g_face_y * s;
     float foff = 46.0f * s, fr = 26.0f * s;
     draw_btn(dl, fcx + foff, fcy, fr, "A", (g_active_buttons & (1ull << BTN_A)) != 0, IM_COL32(230, 50, 50, 190));
     draw_btn(dl, fcx, fcy + foff, fr, "B", (g_active_buttons & (1ull << BTN_B)) != 0, IM_COL32(230, 180, 40, 190));
@@ -310,7 +360,7 @@ void touch_overlay_render(float display_w, float display_h, float scale) {
     draw_btn(dl, fcx - foff, fcy, fr, "Y", (g_active_buttons & (1ull << BTN_Y)) != 0, IM_COL32(40, 190, 80, 190));
 
     // 4. D-Pad (Up, Down, Left, Right)
-    float dcx = 140.0f * s, dcy = H - 290.0f * s;
+    float dcx = (140.0f + g_dpad_x) * s, dcy = (H - 290.0f * s) + g_dpad_y * s;
     float doff = 42.0f * s, dr = 24.0f * s;
     draw_btn(dl, dcx, dcy - doff, dr, "^", (g_active_buttons & (1ull << BTN_UP)) != 0, IM_COL32(236, 194, 84, 180));
     draw_btn(dl, dcx, dcy + doff, dr, "v", (g_active_buttons & (1ull << BTN_DOWN)) != 0, IM_COL32(236, 194, 84, 180));

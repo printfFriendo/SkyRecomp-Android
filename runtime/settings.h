@@ -90,8 +90,13 @@ typedef struct {
     char keys_path[1024];  // path to user keys file (prod.keys, title.keys)
 #if defined(__ANDROID__)
     bool touch_enabled;
+    bool touch_haptics;
     float touch_opacity;
     float touch_scale;
+    float touch_lstick_x, touch_lstick_y;
+    float touch_rstick_x, touch_rstick_y;
+    float touch_face_x, touch_face_y;
+    float touch_dpad_x, touch_dpad_y;
 #endif
 } Settings;
 

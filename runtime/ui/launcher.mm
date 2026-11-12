@@ -536,8 +536,13 @@ static const char *const BUILD_DESC =
 static void SDLCALL picked(void *, const char *const *files, int) {
     if (!files) {  // (the dialog itself failed: no xdg-desktop-portal / zenity, e.g. Batocera - #87)
         fprintf(stderr, "[launcher] folder dialog: %s\n", SDL_GetError());
+#if defined(__ANDROID__)
+        set_job("Storage Access or Folder Dialog Unavailable", true,
+                "Please place your game files ('romfs' or 'romfs.bin') in:\n/sdcard/Android/data/com.apolinario.skyrecomp/files/");
+#else
         set_job("This system has no folder dialog.", true,
                 "Start Sky Recomp with SKYRECOMP_GAME_FILES=<your game files folder> set, then choose Start.");
+#endif
         return;
     }
     if (!files[0]) return;
@@ -1604,8 +1609,13 @@ extern "C" void launcher_run(const char *root) {
                     dl->AddLine(ImVec2(x + u * 0.35f, cy + u * 0.35f), ImVec2(x + u, cy - u * 0.4f), g, fs * 0.11f);
                 };
 
+#if defined(__ANDROID__)
+                std::string src_d = "Select your unpacked game files folder, or place 'romfs' in /sdcard/Android/data/com.apolinario.skyrecomp/files/. "
+                                    "Sky Recomp does not include any game assets or copyrighted data.";
+#else
                 std::string src_d = "Select the folder containing your unpacked game files (base version 1.0.0 or 1.0.1). "
                                     "Sky Recomp does not include any game assets or copyrighted data.";
+#endif
                 if (!src.empty()) src_d += "\n\nSelected folder:\n" + src;
 
                 const std::string &job_line = job;

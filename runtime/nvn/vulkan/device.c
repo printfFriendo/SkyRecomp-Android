@@ -7,6 +7,9 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#if !defined(_WIN32)
+#include <dlfcn.h>
+#endif
 #ifdef _WIN32
 #include <windows.h>
 #endif
@@ -50,6 +53,20 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBi
 
 // LARECOMP_VK_VALIDATION=1: Khronos validation layer (MSYS2 package vulkan-validation-layers)
 static void create_instance(void) {
+#if defined(__ANDROID__)
+    const char *custom_drv = getenv("SKYRECOMP_VK_DRIVER");
+    if (!custom_drv && access("/sdcard/Android/data/com.apolinario.skyrecomp/files/libvulkan_custom.so", R_OK) == 0) {
+        custom_drv = "/sdcard/Android/data/com.apolinario.skyrecomp/files/libvulkan_custom.so";
+    }
+    if (custom_drv) {
+        void *h = dlopen(custom_drv, RTLD_NOW | RTLD_LOCAL);
+        if (h) {
+            LOG("[vk] Custom Vulkan driver loaded from: %s\n", custom_drv);
+        } else {
+            LOG("[vk] Could not load custom Vulkan driver %s: %s\n", custom_drv, dlerror());
+        }
+    }
+#endif
     Uint32 n_sdl = 0;
     const char *const *sdl_ext = SDL_Vulkan_GetInstanceExtensions(&n_sdl);
     const char *ext[16];

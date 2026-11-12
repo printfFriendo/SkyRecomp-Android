@@ -56,8 +56,17 @@ Settings g_settings = {
     .upscaler = UPSCALE_SHARP,  // (MetalFX on macOS, AMD FSR 1 on Windows)
 #if defined(__ANDROID__)
     .touch_enabled = true,
+    .touch_haptics = true,
     .touch_opacity = 0.65f,
     .touch_scale = 1.0f,
+    .touch_lstick_x = 0.0f,
+    .touch_lstick_y = 0.0f,
+    .touch_rstick_x = 0.0f,
+    .touch_rstick_y = 0.0f,
+    .touch_face_x = 0.0f,
+    .touch_face_y = 0.0f,
+    .touch_dpad_x = 0.0f,
+    .touch_dpad_y = 0.0f,
 #endif
 };
 
@@ -261,6 +270,10 @@ void settings_load(void) {
             g_settings.touch_enabled = atoi(val) != 0;
             touch_overlay_set_enabled(g_settings.touch_enabled);
         }
+        else if (!strcmp(key, "touch_haptics")) {
+            g_settings.touch_haptics = atoi(val) != 0;
+            touch_overlay_set_haptics(g_settings.touch_haptics);
+        }
         else if (!strcmp(key, "touch_opacity")) {
             g_settings.touch_opacity = (float)atof(val);
             touch_overlay_set_opacity(g_settings.touch_opacity);
@@ -268,6 +281,20 @@ void settings_load(void) {
         else if (!strcmp(key, "touch_scale")) {
             g_settings.touch_scale = (float)atof(val);
             touch_overlay_set_scale(g_settings.touch_scale);
+        }
+        else if (!strcmp(key, "touch_lstick_x")) g_settings.touch_lstick_x = (float)atof(val);
+        else if (!strcmp(key, "touch_lstick_y")) g_settings.touch_lstick_y = (float)atof(val);
+        else if (!strcmp(key, "touch_rstick_x")) g_settings.touch_rstick_x = (float)atof(val);
+        else if (!strcmp(key, "touch_rstick_y")) g_settings.touch_rstick_y = (float)atof(val);
+        else if (!strcmp(key, "touch_face_x")) g_settings.touch_face_x = (float)atof(val);
+        else if (!strcmp(key, "touch_face_y")) g_settings.touch_face_y = (float)atof(val);
+        else if (!strcmp(key, "touch_dpad_x")) g_settings.touch_dpad_x = (float)atof(val);
+        else if (!strcmp(key, "touch_dpad_y")) {
+            g_settings.touch_dpad_y = (float)atof(val);
+            touch_overlay_set_offsets(g_settings.touch_lstick_x, g_settings.touch_lstick_y,
+                                      g_settings.touch_rstick_x, g_settings.touch_rstick_y,
+                                      g_settings.touch_face_x, g_settings.touch_face_y,
+                                      g_settings.touch_dpad_x, g_settings.touch_dpad_y);
         }
 #endif
         else if (!strcmp(key, "prompts")) g_settings.prompts = !strcmp(val, "nintendo") ? PROMPTS_NINTENDO : !strcmp(val, "xbox") ?
@@ -393,8 +420,15 @@ void settings_save(void) {
     fprintf(f, "keys_path = %s\n", g_settings.keys_path);
 #if defined(__ANDROID__)
     fprintf(f, "touch_enabled = %d\n", touch_overlay_is_enabled() ? 1 : 0);
+    fprintf(f, "touch_haptics = %d\n", touch_overlay_get_haptics() ? 1 : 0);
     fprintf(f, "touch_opacity = %.2f\n", touch_overlay_get_opacity());
     fprintf(f, "touch_scale = %.2f\n", touch_overlay_get_scale());
+    float lx, ly, rx, ry, fx, fy, dx, dy;
+    touch_overlay_get_offsets(&lx, &ly, &rx, &ry, &fx, &fy, &dx, &dy);
+    fprintf(f, "touch_lstick_x = %.1f\ntouch_lstick_y = %.1f\n", lx, ly);
+    fprintf(f, "touch_rstick_x = %.1f\ntouch_rstick_y = %.1f\n", rx, ry);
+    fprintf(f, "touch_face_x = %.1f\ntouch_face_y = %.1f\n", fx, fy);
+    fprintf(f, "touch_dpad_x = %.1f\ntouch_dpad_y = %.1f\n", dx, dy);
 #endif
     fclose(f);
 }
