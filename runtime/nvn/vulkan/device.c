@@ -934,6 +934,12 @@ int ui_run(void) {
                 LOG("window closed\n");
                 exit(0);
             }
+#if defined(__ANDROID__)
+            if (e.type == SDL_EVENT_WILL_ENTER_BACKGROUND || e.type == SDL_EVENT_DID_ENTER_BACKGROUND) {
+                LOG("[vk] Android background event: saving shader pipeline cache\n");
+                vk_pipeline_cache_save();
+            }
+#endif
             extern bool input_user_blocked(const SDL_Event *e);
             if (input_user_blocked(&e)) continue;  // scripted test runs: the real keyboard / mouse / pads do nothing (as metal.m)
             bool consumed = menu_handle_event(&e);

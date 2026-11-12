@@ -27,10 +27,32 @@ struct TouchFinger {
 #define MAX_FINGERS 10
 static TouchFinger g_fingers[MAX_FINGERS];
 static bool g_enabled = true;
+static float g_user_opacity = 0.65f;
+static float g_user_scale = 1.0f;
 static uint64_t g_active_buttons = 0;
 static int32_t g_stick_lx = 0, g_stick_ly = 0;
 static int32_t g_stick_rx = 0, g_stick_ry = 0;
 static float g_cur_w = 1920.0f, g_cur_h = 1080.0f;
+
+float touch_overlay_get_opacity(void) { return g_user_opacity; }
+void touch_overlay_set_opacity(float opacity) {
+    if (opacity < 0.1f) opacity = 0.1f;
+    if (opacity > 1.0f) opacity = 1.0f;
+    g_user_opacity = opacity;
+}
+
+float touch_overlay_get_scale(void) { return g_user_scale; }
+void touch_overlay_set_scale(float scale) {
+    if (scale < 0.5f) scale = 0.5f;
+    if (scale > 2.0f) scale = 2.0f;
+    g_user_scale = scale;
+}
+
+static inline ImU32 modulate_alpha(ImU32 col, float factor) {
+    ImVec4 c = ImGui::ColorConvertU32ToFloat4(col);
+    c.w *= factor;
+    return ImGui::ColorConvertFloat4ToU32(c);
+}
 
 void touch_overlay_init(void) {
     memset(g_fingers, 0, sizeof(g_fingers));
@@ -59,6 +81,7 @@ static inline float dist_sq(float x1, float y1, float x2, float y2) {
 }
 
 static int hit_test(float px, float py, float W, float H, float s) {
+    s *= g_user_scale;
     // 1. Left Stick (Base center)
     float lx = 140.0f * s, ly = H - 140.0f * s, lr = 90.0f * s;
     if (dist_sq(px, py, lx, ly) <= lr * lr) return CTRL_LSTICK;
@@ -104,6 +127,7 @@ static int hit_test(float px, float py, float W, float H, float s) {
 }
 
 static void update_state(float W, float H, float s) {
+    s *= g_user_scale;
     uint64_t buttons = 0;
     int32_t lx = 0, ly = 0, rx = 0, ry = 0;
 
@@ -225,21 +249,25 @@ bool touch_overlay_handle_event(const SDL_Event *e) {
 static void draw_btn(ImDrawList *dl, float cx, float cy, float r, const char *label, bool active, ImU32 col_active) {
     ImU32 bg = active ? col_active : IM_COL32(30, 30, 30, 110);
     ImU32 border = active ? IM_COL32(255, 255, 255, 220) : IM_COL32(200, 200, 200, 130);
+    bg = modulate_alpha(bg, g_user_opacity);
+    border = modulate_alpha(border, g_user_opacity);
     dl->AddCircleFilled(ImVec2(cx, cy), r, bg);
     dl->AddCircle(ImVec2(cx, cy), r, border, 0, 2.0f);
 
     ImVec2 txt_sz = ImGui::CalcTextSize(label);
-    dl->AddText(ImVec2(cx - txt_sz.x * 0.5f, cy - txt_sz.y * 0.5f), IM_COL32(255, 255, 255, 220), label);
+    dl->AddText(ImVec2(cx - txt_sz.x * 0.5f, cy - txt_sz.y * 0.5f), modulate_alpha(IM_COL32(255, 255, 255, 220), g_user_opacity), label);
 }
 
 static void draw_capsule_btn(ImDrawList *dl, float x, float y, float w, float h, const char *label, bool active) {
     ImU32 bg = active ? IM_COL32(236, 194, 84, 180) : IM_COL32(30, 30, 30, 110);
     ImU32 border = active ? IM_COL32(255, 255, 255, 220) : IM_COL32(200, 200, 200, 130);
+    bg = modulate_alpha(bg, g_user_opacity);
+    border = modulate_alpha(border, g_user_opacity);
     dl->AddRectFilled(ImVec2(x, y), ImVec2(x + w, y + h), bg, h * 0.5f);
     dl->AddRect(ImVec2(x, y), ImVec2(x + w, y + h), border, h * 0.5f, 0, 2.0f);
 
     ImVec2 txt_sz = ImGui::CalcTextSize(label);
-    dl->AddText(ImVec2(x + (w - txt_sz.x) * 0.5f, y + (h - txt_sz.y) * 0.5f), IM_COL32(255, 255, 255, 220), label);
+    dl->AddText(ImVec2(x + (w - txt_sz.x) * 0.5f, y + (h - txt_sz.y) * 0.5f), modulate_alpha(IM_COL32(255, 255, 255, 220), g_user_opacity), label);
 }
 
 void touch_overlay_render(float display_w, float display_h, float scale) {
@@ -248,30 +276,30 @@ void touch_overlay_render(float display_w, float display_h, float scale) {
     g_cur_w = display_w;
     g_cur_h = display_h;
     float W = display_w, H = display_h;
-    float s = scale;
-    if (s < 0.6f) s = 0.6f;
+    float s = scale * g_user_scale;
+    if (s < 0.5f) s = 0.5f;
 
     ImDrawList *dl = ImGui::GetForegroundDrawList();
 
     // 1. Left Analog Stick (Movement)
     float lx = 140.0f * s, ly = H - 140.0f * s, lr = 75.0f * s;
-    dl->AddCircleFilled(ImVec2(lx, ly), lr, IM_COL32(25, 25, 25, 80));
-    dl->AddCircle(ImVec2(lx, ly), lr, IM_COL32(180, 180, 180, 100), 0, 2.0f);
+    dl->AddCircleFilled(ImVec2(lx, ly), lr, modulate_alpha(IM_COL32(25, 25, 25, 80), g_user_opacity));
+    dl->AddCircle(ImVec2(lx, ly), lr, modulate_alpha(IM_COL32(180, 180, 180, 100), g_user_opacity), 0, 2.0f);
 
     float thumb_lx = lx + ((float)g_stick_lx / 32767.0f) * lr;
     float thumb_ly = ly - ((float)g_stick_ly / 32767.0f) * lr;
-    dl->AddCircleFilled(ImVec2(thumb_lx, thumb_ly), 32.0f * s, IM_COL32(200, 200, 200, 140));
-    dl->AddCircle(ImVec2(thumb_lx, thumb_ly), 32.0f * s, IM_COL32(255, 255, 255, 200), 0, 2.0f);
+    dl->AddCircleFilled(ImVec2(thumb_lx, thumb_ly), 32.0f * s, modulate_alpha(IM_COL32(200, 200, 200, 140), g_user_opacity));
+    dl->AddCircle(ImVec2(thumb_lx, thumb_ly), 32.0f * s, modulate_alpha(IM_COL32(255, 255, 255, 200), g_user_opacity), 0, 2.0f);
 
     // 2. Right Analog Stick (Camera / Sword)
     float rx = W - 280.0f * s, ry = H - 140.0f * s, rr = 65.0f * s;
-    dl->AddCircleFilled(ImVec2(rx, ry), rr, IM_COL32(25, 25, 25, 80));
-    dl->AddCircle(ImVec2(rx, ry), rr, IM_COL32(180, 180, 180, 100), 0, 2.0f);
+    dl->AddCircleFilled(ImVec2(rx, ry), rr, modulate_alpha(IM_COL32(25, 25, 25, 80), g_user_opacity));
+    dl->AddCircle(ImVec2(rx, ry), rr, modulate_alpha(IM_COL32(180, 180, 180, 100), g_user_opacity), 0, 2.0f);
 
     float thumb_rx = rx + ((float)g_stick_rx / 32767.0f) * rr;
     float thumb_ry = ry - ((float)g_stick_ry / 32767.0f) * rr;
-    dl->AddCircleFilled(ImVec2(thumb_rx, thumb_ry), 28.0f * s, IM_COL32(200, 200, 200, 140));
-    dl->AddCircle(ImVec2(thumb_rx, thumb_ry), 28.0f * s, IM_COL32(255, 255, 255, 200), 0, 2.0f);
+    dl->AddCircleFilled(ImVec2(thumb_rx, thumb_ry), 28.0f * s, modulate_alpha(IM_COL32(200, 200, 200, 140), g_user_opacity));
+    dl->AddCircle(ImVec2(thumb_rx, thumb_ry), 28.0f * s, modulate_alpha(IM_COL32(255, 255, 255, 200), g_user_opacity), 0, 2.0f);
 
     // 3. Face buttons (A, B, X, Y)
     float fcx = W - 110.0f * s, fcy = H - 140.0f * s;

@@ -88,6 +88,11 @@ typedef struct {
     char rando_seed[128];  // active randomizer seed (rando/<name>/), empty = vanilla
     char rom_path[1024];   // path to user ROM file (.nsp, .xci)
     char keys_path[1024];  // path to user keys file (prod.keys, title.keys)
+#if defined(__ANDROID__)
+    bool touch_enabled;
+    float touch_opacity;
+    float touch_scale;
+#endif
 } Settings;
 
 enum { N_TUNIC_COLOURS = 13, N_HEART_COLOURS = 9 };

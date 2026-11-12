@@ -20,6 +20,12 @@ void touch_overlay_render(float display_w, float display_h, float scale);
 bool touch_overlay_is_enabled(void);
 void touch_overlay_set_enabled(bool enabled);
 
+// User customization: opacity (0.1 - 1.0) and scale (0.5 - 2.0)
+float touch_overlay_get_opacity(void);
+void touch_overlay_set_opacity(float opacity);
+float touch_overlay_get_scale(void);
+void touch_overlay_set_scale(float scale);
+
 // Feed into runtime/hle/input.c
 void touch_set_buttons(uint64_t buttons);
 void touch_set_sticks(int32_t lx, int32_t ly, int32_t rx, int32_t ry);

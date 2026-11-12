@@ -10,6 +10,9 @@
 extern "C" {
 #include "../input_bind.h"
 #include "../settings.h"
+#if defined(__ANDROID__)
+#include "touch_overlay.h"
+#endif
 }
 
 static void cell(int dev, int slot, int fam, int cap_dev, int cap_slot, int ms_left) {
@@ -51,6 +54,33 @@ extern "C" void controls_bindings_draw(float scale) {
     ImGui::TextDisabled("Select a binding, then press the new button or key. Esc (or 5 seconds) cancels. A button "
                         "that's already in use swaps with the old one.");
     ImGui::PopTextWrapPos();
+
+#if defined(__ANDROID__)
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+    ImGui::TextColored(ImVec4(0.93f, 0.76f, 0.33f, 1), "Touch Screen Controls");
+    bool touch_enabled = touch_overlay_is_enabled();
+    if (ImGui::Checkbox("Enable On-Screen Touch Controls", &touch_enabled)) {
+        touch_overlay_set_enabled(touch_enabled);
+        settings_save();
+    }
+    if (touch_enabled) {
+        float opacity = touch_overlay_get_opacity();
+        if (ImGui::SliderFloat("Touch Opacity", &opacity, 0.1f, 1.0f, "%.2f")) {
+            touch_overlay_set_opacity(opacity);
+            settings_save();
+        }
+        float t_scale = touch_overlay_get_scale();
+        if (ImGui::SliderFloat("Touch Button Scale", &t_scale, 0.5f, 2.0f, "%.2f")) {
+            touch_overlay_set_scale(t_scale);
+            settings_save();
+        }
+    }
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+#endif
 
     int cd, cs, ms;
     bind_capture_active(&cd, &cs, &ms);

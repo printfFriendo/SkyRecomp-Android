@@ -11,6 +11,9 @@
 #include "hle.h"
 #include "input_bind.h"
 #include "mods.h"
+#if defined(__ANDROID__)
+#include "ui/touch_overlay.h"
+#endif
 
 #define SETTINGS_FILE settings_file()
 
@@ -51,6 +54,11 @@ Settings g_settings = {
     .drop_ammo = true,
     .drop_treasures = true,
     .upscaler = UPSCALE_SHARP,  // (MetalFX on macOS, AMD FSR 1 on Windows)
+#if defined(__ANDROID__)
+    .touch_enabled = true,
+    .touch_opacity = 0.65f,
+    .touch_scale = 1.0f,
+#endif
 };
 
 // The game's own text languages: its RomFS carries these per region (regionUS/USen|USes|USfr, regionEU/EUen|EUes|...,
@@ -248,6 +256,20 @@ void settings_load(void) {
         else if (!strcmp(key, "hide_hero_icon")) g_settings.hide_hero_icon = atoi(val) != 0;
         else if (!strcmp(key, "amiibo")) g_settings.amiibo = atoi(val) != 0;
         else if (!strcmp(key, "mirror_mode")) g_settings.mirror_mode = atoi(val) != 0;
+#if defined(__ANDROID__)
+        else if (!strcmp(key, "touch_enabled")) {
+            g_settings.touch_enabled = atoi(val) != 0;
+            touch_overlay_set_enabled(g_settings.touch_enabled);
+        }
+        else if (!strcmp(key, "touch_opacity")) {
+            g_settings.touch_opacity = (float)atof(val);
+            touch_overlay_set_opacity(g_settings.touch_opacity);
+        }
+        else if (!strcmp(key, "touch_scale")) {
+            g_settings.touch_scale = (float)atof(val);
+            touch_overlay_set_scale(g_settings.touch_scale);
+        }
+#endif
         else if (!strcmp(key, "prompts")) g_settings.prompts = !strcmp(val, "nintendo") ? PROMPTS_NINTENDO : !strcmp(val, "xbox") ?
                                                               PROMPTS_XBOX : !strcmp(val, "playstation") ? PROMPTS_PLAYSTATION :
                                                               !strcmp(val, "keyboard") ? PROMPTS_KEYBOARD : PROMPTS_AUTO;
@@ -369,5 +391,10 @@ void settings_save(void) {
     fprintf(f, "rando_seed = %s\n", g_settings.rando_seed);
     fprintf(f, "rom_path = %s\n", g_settings.rom_path);
     fprintf(f, "keys_path = %s\n", g_settings.keys_path);
+#if defined(__ANDROID__)
+    fprintf(f, "touch_enabled = %d\n", touch_overlay_is_enabled() ? 1 : 0);
+    fprintf(f, "touch_opacity = %.2f\n", touch_overlay_get_opacity());
+    fprintf(f, "touch_scale = %.2f\n", touch_overlay_get_scale());
+#endif
     fclose(f);
 }

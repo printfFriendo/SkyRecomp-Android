@@ -127,10 +127,37 @@ The Android port includes a custom touch overlay:
 - **Utility (+, -, Menu)**: Inventory, map, settings.
 - **Android Back Gesture / Button**: Opens or toggles the in-game settings menu.
 - **Physical Gamepads**: Bluetooth or USB controllers (Xbox, DualShock/DualSense, Switch Pro Controller) are recognized automatically via SDL3.
+- **Gyroscope & Motion Aiming**: Physical device sensors (`SDL_SENSOR_GYRO` and `SDL_SENSOR_ACCEL`) are mapped to Switch MotionPlus / SixAxis aim and calibrated via `gyro_sens`.
+- **Touch Customization**: Toggle on-screen controls, adjust button opacity (10% to 100%), and button scale (0.5x to 2.0x) directly in the in-game *Controls* menu tab, with preferences automatically saved to `skyrecomp.ini`.
 
 ---
 
-## 7. Diagnostics & Troubleshooting
+## 7. Recompiling Game Code for Android (tools/build_game_android.py)
+
+To build the static C recompilation of the game code (`libskygame.so`) for Android ARM64:
+
+```bash
+# Compile libskygame.so using NDK Clang (multi-threaded unity build):
+python tools/build_game_android.py
+
+# Compile and automatically package into a new release APK:
+python tools/build_game_android.py --apk
+
+# Compile and push directly to connected device over ADB:
+python tools/build_game_android.py --push
+```
+
+The script automatically locates the Android NDK, runs parallel C generation (`tools/gen.py`), compiles unity batches with `-O3 -march=armv8-a+simd+crc`, links `libskygame.so` with LLD, and updates `android/app/src/main/jniLibs/arm64-v8a/libskygame.so`.
+
+---
+
+## 8. Background Shader Cache Persistence
+
+On Android, Vulkan pipeline caches are automatically serialized to storage whenever the application enters the background or loses focus (`SDL_EVENT_WILL_ENTER_BACKGROUND` / `SDL_EVENT_DID_ENTER_BACKGROUND`). This ensures compiled shaders and pipeline states are preserved across app switches without frame drops or recompilation stutter upon resume.
+
+---
+
+## 9. Diagnostics & Troubleshooting
 
 ### Real-Time Logcat Monitoring
 To view logs, warnings, and shader compilation messages in real-time:

@@ -87,10 +87,15 @@
 - `runtime/nvn/vulkan/textures.c`: Amostradores com anisotropia condicionados a `samplerAnisotropy`.
 - `runtime/nvn/custom_tex.c`: `SDL_LoadBMP` no Android em `load`.
 - `runtime/hle/input.c`: Entrada de toque atômica (`touch_set_buttons`, `touch_set_sticks`) integrada ao polling de HID.
-- `runtime/ui/touch_overlay.h`, `runtime/ui/touch_overlay.cpp`: Implementação completa do overlay tátil mobile.
+- `runtime/ui/touch_overlay.h`, `runtime/ui/touch_overlay.cpp`: Implementação completa do overlay tátil mobile com escala e opacidade customizáveis.
+- `runtime/ui/controls_ui.mm`: Seção de configuração de Touch Screen no menu de controles do jogo com sliders de opacidade e escala.
+- `runtime/settings.h`, `runtime/settings.c`: Persistência de preferências de toque (`touch_enabled`, `touch_opacity`, `touch_scale`) no arquivo `skyrecomp.ini`.
 - `runtime/ui/menu.mm`: Suporte a `SDL_SCANCODE_AC_BACK`, `menu_toggle`, fontes Android e rendering do overlay de toque.
+- `runtime/nvn/vulkan/device.c`: Salvamento automático de pipeline cache Vulkan ao entrar em background (`SDL_EVENT_WILL_ENTER_BACKGROUND` / `SDL_EVENT_DID_ENTER_BACKGROUND`).
+- `tools/build_game_android.py`: Construtor multi-thread automatizado para NDK Clang ARM64-v8a gerando `libskygame.so` a partir do ExeFS do Switch.
 - `tools/gen_smaa.py`, `third_party/smaa/smaa_hlsl.inc`: Gerador do include de shader SMAA.
 - `tools/skygame_stubs.c`: Stubs de tabelas de símbolos para compilação antes da extração da ROM.
+- `android/app/src/main/jniLibs/arm64-v8a/libskygame.so`: Biblioteca nativa do jogo compilada e embarcada.
 
 ---
 
@@ -104,5 +109,7 @@
 7. **shaderc e SDL3 no Android**: SDL3 oficial AAR 3.4.20 extraído para `third_party/SDL3/lib/arm64-v8a/libSDL3.so` e `app/libs/SDL3.aar`. Shaderc compilado via NDK `ndk-build` e empacotado em `libshaderc_combined.a` linkado estaticamente em `libmain.so`.
 8. **Símbolos Vulkan 1.3 ausentes no stub API 29**: Configurado `-DANDROID_PLATFORM=android-33` para prover os stubs do Vulkan 1.3 (`vkCmdBeginRendering`, `vkQueueSubmit2`, etc.).
 9. **Forward declaration de touch_overlay_render no menu.mm**: Corrigida linkage C em escopo de arquivo dentro de `extern "C"`.
+10. **Crash no boot do APK**: Corrigido com inclusão de `libc++_shared` no `MainActivity.java`, criação física de diretório via `getExternalFilesDir(null)`, fallback de Vulkan 1.3 -> 1.2 -> 1.1 em `device.c` e eliminação de unmap destrutivo no `mmap`.
+11. **Giroscópio / Motion Aiming**: Sensores `SDL_SENSOR_GYRO` e `SDL_SENSOR_ACCEL` do smartphone abertos e mapeados em tempo real para a emulação do MotionPlus do Switch.
 
 
