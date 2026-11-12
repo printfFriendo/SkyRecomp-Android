@@ -26,6 +26,7 @@ extern "C" {
 #include "../hle.h"
 #include "../settings.h"
 #include "../perfmon.h"
+#include "../paths.h"
 #include "menu.h"
 extern "C" bool input_free_cam_active(void);  // runtime/hle/input.c: free camera session toggle
 void input_reset(void);
@@ -874,12 +875,14 @@ static void tab_about(void) {
 #if defined(__ANDROID__)
     ImGui::Spacing();
     header("Save Data Management");
-    ImGui::TextUnformatted("App Saves: /sdcard/Android/data/com.apolinario.skyrecomp/files/save");
+    char save_dir_buf[512];
+    snprintf(save_dir_buf, sizeof(save_dir_buf), "App Saves: %s/save", rt_data_root());
+    ImGui::TextUnformatted(save_dir_buf);
     static char s_save_msg[128] = "";
-    if (ImGui::Button("Export Saves to /sdcard/Download/SkyRecomp_Saves", ImVec2(-FLT_MIN, 0))) {
+    if (ImGui::Button("Export Saves to Downloads (SkyRecomp_Saves)", ImVec2(-FLT_MIN, 0))) {
         android_export_saves(s_save_msg, sizeof(s_save_msg));
     }
-    if (ImGui::Button("Import Saves from /sdcard/Download/SkyRecomp_Saves", ImVec2(-FLT_MIN, 0))) {
+    if (ImGui::Button("Import Saves from Downloads (SkyRecomp_Saves)", ImVec2(-FLT_MIN, 0))) {
         android_import_saves(s_save_msg, sizeof(s_save_msg));
     }
     if (s_save_msg[0]) {

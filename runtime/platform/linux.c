@@ -7,6 +7,7 @@
 #include <execinfo.h>
 #else
 #include <android/log.h>
+#include <SDL3/SDL_system.h>
 #include <unwind.h>
 #include <sys/prctl.h>
 #include <stdarg.h>
@@ -146,8 +147,11 @@ static void log_to_file_without_terminal(void) {
 #if defined(__ANDROID__)
     char dir[1024];
     const char *env = getenv("LARECOMP_DATA_ROOT");
+    const char *sdl_ext = SDL_GetAndroidExternalStoragePath();
     if (env && *env) {
         snprintf(dir, sizeof dir, "%s", env);
+    } else if (sdl_ext && *sdl_ext) {
+        snprintf(dir, sizeof dir, "%s", sdl_ext);
     } else {
         snprintf(dir, sizeof dir, "/sdcard/Android/data/com.apolinario.skyrecomp/files");
     }

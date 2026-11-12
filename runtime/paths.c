@@ -13,6 +13,7 @@
 #endif
 #if defined(__ANDROID__)
 #include <android/log.h>
+#include <SDL3/SDL_system.h>
 #endif
 
 #include "gamelib.h"
@@ -102,7 +103,8 @@ void rt_paths_init(void) {
     else if (is_dir("extracted")) snprintf(root, sizeof root, "%s", g_start), g_dev = true;  // dev / portable: as before
     else {
 #if defined(__ANDROID__)
-        const char *ext = "/sdcard/Android/data/com.apolinario.skyrecomp/files";
+        const char *sdl_ext = SDL_GetAndroidExternalStoragePath();
+        const char *ext = (sdl_ext && *sdl_ext) ? sdl_ext : "/sdcard/Android/data/com.apolinario.skyrecomp/files";
         char *pref = SDL_GetPrefPath("Apolinario", "SkyRecomp");
         if (is_dir(ext) && writable(ext)) {
             snprintf(root, sizeof root, "%s", ext);
@@ -281,10 +283,11 @@ static bool copy_dir_recursive(const char *src, const char *dst) {
 }
 
 bool android_export_saves(char *status, size_t status_sz) {
-    const char *src = "/sdcard/Android/data/com.apolinario.skyrecomp/files/save";
-    const char *dst = "/sdcard/Download/SkyRecomp_Saves";
+    char src[1024];
+    snprintf(src, sizeof(src), "%s/save", rt_data_root());
+    const char *dst = is_dir("/storage/emulated/0/Download") ? "/storage/emulated/0/Download/SkyRecomp_Saves" : "/sdcard/Download/SkyRecomp_Saves";
     if (!is_dir(src)) {
-        snprintf(status, status_sz, "No save directory found in app files.");
+        snprintf(status, status_sz, "No save directory found yet. Save your game first!");
         return false;
     }
     mkdirs(dst);
@@ -299,10 +302,11 @@ bool android_export_saves(char *status, size_t status_sz) {
 }
 
 bool android_import_saves(char *status, size_t status_sz) {
-    const char *src = "/sdcard/Download/SkyRecomp_Saves";
-    const char *dst = "/sdcard/Android/data/com.apolinario.skyrecomp/files/save";
+    const char *src = is_dir("/storage/emulated/0/Download/SkyRecomp_Saves") ? "/storage/emulated/0/Download/SkyRecomp_Saves" : "/sdcard/Download/SkyRecomp_Saves";
+    char dst[1024];
+    snprintf(dst, sizeof(dst), "%s/save", rt_data_root());
     if (!is_dir(src)) {
-        snprintf(status, status_sz, "No saves found in /sdcard/Download/SkyRecomp_Saves.");
+        snprintf(status, status_sz, "No saves found in Download/SkyRecomp_Saves.");
         return false;
     }
     mkdirs(dst);

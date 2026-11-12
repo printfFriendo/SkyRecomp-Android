@@ -55,7 +55,12 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBi
 static void create_instance(void) {
 #if defined(__ANDROID__)
     const char *custom_drv = getenv("SKYRECOMP_VK_DRIVER");
-    if (!custom_drv && access("/sdcard/Android/data/com.apolinario.skyrecomp/files/libvulkan_custom.so", R_OK) == 0) {
+    char drv_buf[1024];
+    extern const char *rt_data_root(void);
+    snprintf(drv_buf, sizeof(drv_buf), "%s/libvulkan_custom.so", rt_data_root());
+    if (!custom_drv && access(drv_buf, R_OK) == 0) {
+        custom_drv = drv_buf;
+    } else if (!custom_drv && access("/sdcard/Android/data/com.apolinario.skyrecomp/files/libvulkan_custom.so", R_OK) == 0) {
         custom_drv = "/sdcard/Android/data/com.apolinario.skyrecomp/files/libvulkan_custom.so";
     }
     if (custom_drv) {

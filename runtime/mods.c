@@ -80,8 +80,11 @@ void mods_open_folder(void) {
     system("open mods &");
 #elif defined(__ANDROID__)
     mkdir("mods", 0755);
+    extern const char *rt_data_root(void);
+    char toast[512];
+    snprintf(toast, sizeof(toast), "Mods folder:\n%s/mods", rt_data_root());
     extern bool SDL_ShowAndroidToast(const char *message, int duration, int gravity, int xoffset, int yoffset);
-    SDL_ShowAndroidToast("Mods folder: /sdcard/Android/data/com.apolinario.skyrecomp/files/mods", 1, -1, 0, 0);
+    SDL_ShowAndroidToast(toast, 1, -1, 0, 0);
 #else
     mkdir("mods", 0755);
     system("xdg-open mods & >/dev/null 2>&1");

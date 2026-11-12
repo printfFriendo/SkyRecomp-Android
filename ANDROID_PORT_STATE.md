@@ -1,13 +1,15 @@
 # Android Port State (Checkpoint de Progresso)
 
 ## Status Atual
-- **Fase Ativa:** Todas as Fases (1 a 5) + 120Hz Display Mode + Auto-Hide Touch on Gamepad + Custom Controller Mappings Concluídos!
-- **Últimos Arquivos Modificados/Criados:** `MainActivity.java`, `runtime/hle/input.c`, `runtime/ui/touch_overlay.h`, `runtime/ui/touch_overlay.cpp`, `runtime/ui/controls_ui.mm`, `runtime/settings.h`, `runtime/settings.c`, `android/app/build.gradle.kts`
+- **Fase Ativa:** Todas as Fases (1 a 5) + Dynamic Scoped Storage Resolution + Download Detection Concluídos!
+- **Últimos Arquivos Modificados/Criados:** `runtime/paths.h`, `runtime/paths.c`, `runtime/mods.c`, `runtime/ui/mods_ui.mm`, `runtime/ui/menu.mm`, `runtime/platform/linux.c`, `runtime/nvn/vulkan/device.c`, `runtime/ui/launcher.mm`, `android/app/build.gradle.kts`
 - **Artefatos Finais:**
-  - `android/app/build/outputs/apk/release/app-release.apk` (Versão 1.0.6, **Assinado** com APK Signature Scheme v2, alinhado com `zipalign` 4-byte boundary).
+  - `android/app/build/outputs/apk/release/app-release.apk` (Versão 1.0.7, **Assinado** com APK Signature Scheme v2, alinhado com `zipalign` 4-byte boundary).
+  - Resolução Dinâmica de Armazenamento: Consulta nativa via `SDL_GetAndroidExternalStoragePath()` e `rt_data_root()`, eliminando falhas de caminhos estáticos em Android 11/12/13/14/15 com Scoped Storage e múltiplos perfis de usuário.
+  - Detecção Dinâmica de Downloads: Suporte transparente para export/import de saves em `/storage/emulated/0/Download` ou `/sdcard/Download`.
   - Suporte a Altas Taxas de Atualização (90Hz, 120Hz, 144Hz): Desbloqueio dinâmico do display mode nativo via Android WindowManager.
   - Integração de Gamepads e Auto-Hide: Ocultação automática de botões virtuais ao plugar controle físico, avisos em toasts nativos e leitor de base de dados `gamecontrollerdb.txt`.
-  - Suporte a Mods Mobile: Camada RomFS customizada em `/sdcard/Android/data/com.apolinario.skyrecomp/files/mods/`, instruções mobile dedicadas no menu e toasts nativos via `SDL_ShowAndroidToast`.
+  - Suporte a Mods Mobile: Camada RomFS customizada com instruções dinâmicas na UI e toasts nativos via `SDL_ShowAndroidToast`.
   - Suporte a Sensores: Giroscópio e Acelerômetro nativos do smartphone integrados ao SixAxis/MotionPlus.
   - Blindagem de Inicialização: Preload de `libc++_shared.so`, criação automática da pasta de dados pelo Java, fallbacks para Vulkan 1.1/1.2 em GPUs móveis e remoção de unmap destrutivo no `mmap`.
 - **Verificação Estática & Build:**
@@ -110,7 +112,11 @@
 - `runtime/ui/controls_ui.mm`: Checkbox para alternar auto-hide de controles táteis com controle físico.
 - `runtime/settings.*`: Persistência de `touch_auto_hide` no arquivo `skyrecomp.ini`.
 - `android/app/src/main/java/com/apolinario/skyrecomp/MainActivity.java`: Desbloqueio dinâmico de taxa de atualização máxima da tela (90Hz / 120Hz / 144Hz) via `Display.Mode`.
-- `android/app/build.gradle.kts`: Incrementado `versionCode` (6) e `versionName` (1.0.6).
+- `android/app/build.gradle.kts`: Incrementado `versionCode` (7) e `versionName` (1.0.7).
+- `runtime/paths.h`, `runtime/paths.c`: Resolução dinâmica de armazenamento via `SDL_GetAndroidExternalStoragePath()`, `rt_data_root()` e detecção da pasta Download do Android.
+- `runtime/platform/linux.c`: Inicialização dinâmica do arquivo de logcat/crash log no diretório externo real do Android.
+- `runtime/nvn/vulkan/device.c`: Detecção dinâmica do driver Vulkan customizado (`libvulkan_custom.so`) via `rt_data_root()`.
+- `runtime/mods.c`, `runtime/ui/mods_ui.mm`, `runtime/ui/menu.mm`, `runtime/ui/launcher.mm`: Mensagens e interfaces atualizadas com o caminho dinâmico do sistema.
 
 ---
 

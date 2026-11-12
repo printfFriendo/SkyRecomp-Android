@@ -45,6 +45,11 @@ bool rt_same_path(const char *a, const char *b);
 typedef struct SDL_Window SDL_Window;
 void rt_window_icon(SDL_Window *w);  // the shipped icon.png, if any
 
+#if defined(__ANDROID__)
+bool android_export_saves(char *status, size_t status_sz);
+bool android_import_saves(char *status, size_t status_sz);
+#endif
+
 #ifdef __cplusplus
 }
 #endif

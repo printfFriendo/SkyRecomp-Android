@@ -7,6 +7,7 @@ extern "C" {
 #include "../mods.h"
 #include "../settings.h"
 #include "../rt.h"
+#include "../paths.h"
 }
 
 static bool s_has_changes = false;
@@ -60,7 +61,7 @@ void tab_mods(float scale) {
         ImGui::Spacing();
 #if defined(__ANDROID__)
         ImGui::TextUnformatted("How to install mods on Android:");
-        ImGui::BulletText("Place mod folders into: /sdcard/Android/data/com.apolinario.skyrecomp/files/mods/");
+        ImGui::BulletText("Place mod folders into: %s/mods/", rt_data_root());
         ImGui::BulletText("Each mod folder should contain a 'romfs/' subfolder (e.g. 'mods/MyMod/romfs/').");
         ImGui::BulletText("Tap 'Rescan' to detect newly placed mods, then 'Apply & Restart Game'.");
 #else
