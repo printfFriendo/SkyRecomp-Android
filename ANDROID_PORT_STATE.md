@@ -1,17 +1,14 @@
 # Android Port State (Checkpoint de Progresso)
 
 ## Status Atual
-- **Fase Ativa:** Todas as Fases (1 a 5) + Dynamic Scoped Storage Resolution + Download Detection Concluídos!
-- **Últimos Arquivos Modificados/Criados:** `runtime/paths.h`, `runtime/paths.c`, `runtime/mods.c`, `runtime/ui/mods_ui.mm`, `runtime/ui/menu.mm`, `runtime/platform/linux.c`, `runtime/nvn/vulkan/device.c`, `runtime/ui/launcher.mm`, `android/app/build.gradle.kts`
+- **Fase Ativa:** Todas as Fases (1 a 5) + Motor Nativo de Extração NSP (AES-128-CTR) + Resiliência Multi-Diretório Concluídos!
+- **Últimos Arquivos Modificados/Criados:** `runtime/services/fs.c`, `runtime/ui/launcher.mm`, `runtime/nsp_extract.h`, `runtime/nsp_extract.c`, `tools/build_game_android.py`, `android/app/build.gradle.kts`
 - **Artefatos Finais:**
-  - `android/app/build/outputs/apk/release/app-release.apk` (Versão 1.0.7, **Assinado** com APK Signature Scheme v2, alinhado com `zipalign` 4-byte boundary).
+  - `android/app/build/outputs/apk/release/app-release.apk` (Versão 1.0.8, **Assinado** com APK Signature Scheme v2, alinhado com `zipalign` 4-byte boundary).
+  - Publicado no GitHub Release: [`v1.0.8-android-alpha`](https://github.com/printfFriendo/SkyRecomp-Android/releases/download/v1.0.8-android-alpha/SkyRecomp-v1.0.8-release.apk).
+  - Motor AES-128-CTR e extrator PFS0/RomFS embutido no launcher: descriptografia e streaming de ROMs `.nsp`/`.xci` diretamente na UI.
+  - Varredura e detecção multi-diretório de ROM e `romfs.bin` em `/sdcard/Android/data/com.apolinario.skyrecomp/files`, CWD (`.`), `extracted/` e `/sdcard/Download`.
   - Resolução Dinâmica de Armazenamento: Consulta nativa via `SDL_GetAndroidExternalStoragePath()` e `rt_data_root()`, eliminando falhas de caminhos estáticos em Android 11/12/13/14/15 com Scoped Storage e múltiplos perfis de usuário.
-  - Detecção Dinâmica de Downloads: Suporte transparente para export/import de saves em `/storage/emulated/0/Download` ou `/sdcard/Download`.
-  - Suporte a Altas Taxas de Atualização (90Hz, 120Hz, 144Hz): Desbloqueio dinâmico do display mode nativo via Android WindowManager.
-  - Integração de Gamepads e Auto-Hide: Ocultação automática de botões virtuais ao plugar controle físico, avisos em toasts nativos e leitor de base de dados `gamecontrollerdb.txt`.
-  - Suporte a Mods Mobile: Camada RomFS customizada com instruções dinâmicas na UI e toasts nativos via `SDL_ShowAndroidToast`.
-  - Suporte a Sensores: Giroscópio e Acelerômetro nativos do smartphone integrados ao SixAxis/MotionPlus.
-  - Blindagem de Inicialização: Preload de `libc++_shared.so`, criação automática da pasta de dados pelo Java, fallbacks para Vulkan 1.1/1.2 em GPUs móveis e remoção de unmap destrutivo no `mmap`.
 - **Verificação Estática & Build:**
   - Compilação Android NDK r28b + Gradle Release: 100% SUCCESS.
   - Alinhamento de páginas: 16KB (`0x4000`), 100% compatível com Android 15+.
