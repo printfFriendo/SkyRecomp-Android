@@ -39,7 +39,7 @@ extern "C" void vk_reshade_init(void) {
 extern "C" bool vk_imgui_backend_init(void) {
     if (ImGui::GetIO().BackendRendererUserData) return true;
     ImGui_ImplVulkan_InitInfo ii = {};
-    ii.ApiVersion = VK_API_VERSION_1_3;
+    ii.ApiVersion = g_vk.props.apiVersion ? g_vk.props.apiVersion : VK_API_VERSION_1_3;
     ii.Instance = g_vk.inst;
     ii.PhysicalDevice = g_vk.phys;
     ii.Device = g_vk.dev;

@@ -259,8 +259,10 @@ static void create_device(void) {
     VkPhysicalDeviceCustomBorderColorFeaturesEXT cbc = {
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CUSTOM_BORDER_COLOR_FEATURES_EXT, .customBorderColors = VK_TRUE,
         .customBorderColorWithoutFormat = VK_TRUE, .pNext = g_vk.divisor ? &div : NULL};
+    bool has_vk13 = (g_vk.props.apiVersion >= VK_API_VERSION_1_3);
     VkPhysicalDeviceVulkan13Features f13 = {.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
-                                            .dynamicRendering = VK_TRUE, .synchronization2 = VK_TRUE,
+                                            .dynamicRendering = h13.dynamicRendering,
+                                            .synchronization2 = h13.synchronization2,
                                             .shaderDemoteToHelperInvocation = h13.shaderDemoteToHelperInvocation,
                                             .shaderTerminateInvocation = h13.shaderTerminateInvocation,
                                             .maintenance4 = h13.maintenance4,
@@ -270,7 +272,8 @@ static void create_device(void) {
                                             .samplerMirrorClampToEdge = h12.samplerMirrorClampToEdge,
                                             .uniformAndStorageBuffer8BitAccess = h12.uniformAndStorageBuffer8BitAccess,
                                             .storageBuffer8BitAccess = h12.storageBuffer8BitAccess,
-                                            .scalarBlockLayout = h12.scalarBlockLayout, .pNext = &f13};
+                                            .scalarBlockLayout = h12.scalarBlockLayout,
+                                            .pNext = has_vk13 ? (void *)&f13 : (g_vk.custom_border ? (void *)&cbc : g_vk.divisor ? (void *)&div : NULL)};
     VkPhysicalDeviceVulkan11Features f11 = {.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES,
                                             .storageBuffer16BitAccess = h11.storageBuffer16BitAccess, .pNext = &f12};
     VkPhysicalDeviceFaultFeaturesEXT ff = {.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FAULT_FEATURES_EXT,
@@ -308,8 +311,14 @@ static void create_device(void) {
     VK_CHECK(vkCreateDevice(g_vk.phys, &di, NULL, &g_vk.dev));
     vkGetDeviceQueue(g_vk.dev, g_vk.qfam, 0, &g_vk.queue);
 
+    uint32_t vma_api = VK_API_VERSION_1_3;
+#if defined(__ANDROID__)
+    if (g_vk.props.apiVersion < VK_API_VERSION_1_3) {
+        vma_api = (g_vk.props.apiVersion >= VK_API_VERSION_1_2) ? VK_API_VERSION_1_2 : VK_API_VERSION_1_1;
+    }
+#endif
     VmaAllocatorCreateInfo ai = {.physicalDevice = g_vk.phys, .device = g_vk.dev, .instance = g_vk.inst,
-                                 .vulkanApiVersion = VK_API_VERSION_1_3};
+                                 .vulkanApiVersion = vma_api};
     VK_CHECK(vmaCreateAllocator(&ai, &g_vk.vma));
 
     VkSemaphoreTypeCreateInfo st = {.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO,
@@ -386,6 +395,16 @@ static VkPresentModeKHR present_mode(void) {
 }
 
 static void create_swapchain(void) {
+#if defined(__ANDROID__)
+    // On Android, wait briefly for window dimensions to be reported if not yet ready
+    for (int tries = 0; tries < 50; tries++) {
+        int pw = 0, ph = 0;
+        SDL_GetWindowSizeInPixels(window, &pw, &ph);
+        if (pw > 0 && ph > 0) break;
+        SDL_PumpEvents();
+        SDL_Delay(16);
+    }
+#endif
     VkSurfaceCapabilitiesKHR caps;
     VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(g_vk.phys, g_vk.surface, &caps));
     int w, h;
@@ -405,12 +424,27 @@ static void create_swapchain(void) {
     if (caps.maxImageCount && count > caps.maxImageCount) count = caps.maxImageCount;
     if (count > 8) count = 8;
     VkSwapchainKHR old = g_vk.swapchain;
+
+    VkCompositeAlphaFlagBitsKHR compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+    VkCompositeAlphaFlagBitsKHR compositeAlphaFlags[4] = {
+        VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+        VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR,
+        VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR,
+        VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR
+    };
+    for (int i = 0; i < 4; i++) {
+        if (caps.supportedCompositeAlpha & compositeAlphaFlags[i]) {
+            compositeAlpha = compositeAlphaFlags[i];
+            break;
+        }
+    }
+
     VkSwapchainCreateInfoKHR ci = {
         .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR, .surface = g_vk.surface, .minImageCount = count,
         .imageFormat = sf.format, .imageColorSpace = sf.colorSpace, .imageExtent = ext, .imageArrayLayers = 1,
         .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
         .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE, .preTransform = caps.currentTransform,
-        .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR, .presentMode = present_mode(), .clipped = VK_TRUE,
+        .compositeAlpha = compositeAlpha, .presentMode = present_mode(), .clipped = VK_TRUE,
         .oldSwapchain = old};
     VkSwapchainKHR next = VK_NULL_HANDLE;
     VkResult result = vkCreateSwapchainKHR(g_vk.dev, &ci, NULL, &next);
@@ -872,6 +906,9 @@ void ui_window_init(void) {
     }
 #endif
     SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
+#if defined(__ANDROID__)
+    SDL_SetHint("SDL_ANDROID_ALLOW_RECREATE_ACTIVITY", "1");
+#endif
     settings_load();
     LOG("[vk] initializing SDL video and input\n");
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD)) FATAL("SDL_Init: %s\n", SDL_GetError());
@@ -896,7 +933,19 @@ void ui_window_init(void) {
     create_instance();
     extern void vk_reshade_init(void);
     vk_reshade_init();
+#if defined(__ANDROID__)
+    uint64_t surf_start = SDL_GetTicks();
+    while (!SDL_Vulkan_CreateSurface(window, g_vk.inst, NULL, &g_vk.surface)) {
+        SDL_PumpEvents();
+        SDL_Delay(16);
+        if (SDL_GetTicks() - surf_start > 5000) {
+            FATAL("SDL_Vulkan_CreateSurface timed out waiting for Android surface: %s\n", SDL_GetError());
+        }
+    }
+    LOG("[vk] Android Vulkan surface created successfully after %llu ms\n", (unsigned long long)(SDL_GetTicks() - surf_start));
+#else
     if (!SDL_Vulkan_CreateSurface(window, g_vk.inst, NULL, &g_vk.surface)) FATAL("SDL_Vulkan_CreateSurface: %s\n", SDL_GetError());
+#endif
     pick_device();
     create_device();
     LOG("[vk] device ready\n");

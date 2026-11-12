@@ -1241,11 +1241,13 @@ extern "C" void launcher_run(const char *root) {
     settings_load();
     g_start_screen = 1;
     static bool update_checked;  // (once per launch, not again after a "Title screen" reboot)
+#if !defined(__ANDROID__)
     if (!update_checked && !getenv("LARECOMP_NO_UPDATE_CHECK")) {
         update_checked = true;
         pthread_t t;
         if (pthread_create(&t, NULL, update_thread, NULL) == 0) pthread_detach(t);
     }
+#endif
     ui_window_init();
     SDL_Window *win = ui_window();
     g_launcher_win = win;

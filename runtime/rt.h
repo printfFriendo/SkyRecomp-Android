@@ -9,8 +9,10 @@
 
 #if defined(__ANDROID__)
 #include <android/log.h>
-#define LOG(...) (fprintf(stderr, __VA_ARGS__), (void)__android_log_print(ANDROID_LOG_INFO, "SkyRecomp", __VA_ARGS__))
-#define FATAL(...) (fprintf(stderr, "FATAL: " __VA_ARGS__), (void)__android_log_print(ANDROID_LOG_FATAL, "SkyRecomp", "FATAL: " __VA_ARGS__), rt_fatal_trace())
+extern void plat_android_fatal(const char *msg);
+extern void plat_android_fatal_fmt(const char *fmt, ...);
+#define LOG(...) (fprintf(stderr, __VA_ARGS__), fflush(stderr), (void)__android_log_print(ANDROID_LOG_INFO, "SkyRecomp", __VA_ARGS__))
+#define FATAL(...) (fprintf(stderr, "FATAL: " __VA_ARGS__), fflush(stderr), (void)__android_log_print(ANDROID_LOG_FATAL, "SkyRecomp", "FATAL: " __VA_ARGS__), plat_android_fatal_fmt(__VA_ARGS__), rt_fatal_trace())
 #else
 #define LOG(...) fprintf(stderr, __VA_ARGS__)
 #define FATAL(...) (fprintf(stderr, "FATAL: " __VA_ARGS__), rt_fatal_trace())

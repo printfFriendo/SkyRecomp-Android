@@ -141,6 +141,46 @@ void plat_android_log(int prio, const char *fmt, ...) {
         }
     }
 }
+
+void plat_android_fatal(const char *msg) {
+    if (g_crash_log_path[0]) {
+        FILE *f = fopen(g_crash_log_path, "a");
+        if (f) {
+            fprintf(f, "\n[FATAL ERROR] %s\n", msg);
+            fflush(f);
+            fclose(f);
+        }
+    }
+    const char *sdl_ext = SDL_GetAndroidExternalStoragePath();
+    char p[1024];
+    snprintf(p, sizeof(p), "%s/skyrecomp_fatal.txt", (sdl_ext && *sdl_ext) ? sdl_ext : "/sdcard/Android/data/com.apolinario.skyrecomp/files");
+    FILE *f2 = fopen(p, "w");
+    if (f2) {
+        fprintf(f2, "FATAL ERROR:\n%s\n", msg);
+        fflush(f2);
+        fclose(f2);
+    }
+    char *pref = SDL_GetPrefPath("Apolinario", "SkyRecomp");
+    if (pref) {
+        snprintf(p, sizeof(p), "%s/skyrecomp_fatal.txt", pref);
+        FILE *f3 = fopen(p, "w");
+        if (f3) {
+            fprintf(f3, "FATAL ERROR:\n%s\n", msg);
+            fflush(f3);
+            fclose(f3);
+        }
+        SDL_free(pref);
+    }
+}
+
+void plat_android_fatal_fmt(const char *fmt, ...) {
+    char buf[1024];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, ap);
+    va_end(ap);
+    plat_android_fatal(buf);
+}
 #endif
 
 static void log_to_file_without_terminal(void) {

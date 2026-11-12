@@ -1,11 +1,11 @@
 # Android Port State (Checkpoint de Progresso)
 
 ## Status Atual
-- **Fase Ativa:** Todas as Fases (1 a 5) + Motor Nativo de Extração NSP (AES-128-CTR) + Resiliência Multi-Diretório Concluídos!
-- **Últimos Arquivos Modificados/Criados:** `runtime/services/fs.c`, `runtime/ui/launcher.mm`, `runtime/nsp_extract.h`, `runtime/nsp_extract.c`, `tools/build_game_android.py`, `android/app/build.gradle.kts`
+- **Fase Ativa:** Todas as Fases (1 a 5) + Motor Nativo de Extração NSP + Resiliência Adreno 725 / Poco F5 Concluídos!
+- **Últimos Arquivos Modificados/Criados:** `runtime/nvn/vulkan/device.c`, `runtime/nvn/vulkan/imgui_glue.cpp`, `runtime/paths.c`, `runtime/platform/linux.c`, `runtime/rt.h`, `runtime/ui/launcher.mm`, `android/app/src/main/AndroidManifest.xml`, `android/app/src/main/java/com/apolinario/skyrecomp/MainActivity.java`, `android/app/build.gradle.kts`.
 - **Artefatos Finais:**
-  - `android/app/build/outputs/apk/release/app-release.apk` (Versão 1.0.8, **Assinado** com APK Signature Scheme v2, alinhado com `zipalign` 4-byte boundary).
-  - Publicado no GitHub Release: [`v1.0.8-android-alpha`](https://github.com/printfFriendo/SkyRecomp-Android/releases/download/v1.0.8-android-alpha/SkyRecomp-v1.0.8-release.apk).
+  - `android/app/build/outputs/apk/release/app-release.apk` e `SkyRecomp-v1.0.9-android.apk` (Versão 1.0.9, **Assinado** com APK Signature Scheme v2, alinhado com `zipalign` 4-byte boundary).
+  - Publicado no GitHub Release: [`v1.0.9-android-alpha`](https://github.com/printfFriendo/SkyRecomp-Android/releases/download/v1.0.9-android-alpha/SkyRecomp-v1.0.9-android.apk).
   - Motor AES-128-CTR e extrator PFS0/RomFS embutido no launcher: descriptografia e streaming de ROMs `.nsp`/`.xci` diretamente na UI.
   - Varredura e detecção multi-diretório de ROM e `romfs.bin` em `/sdcard/Android/data/com.apolinario.skyrecomp/files`, CWD (`.`), `extracted/` e `/sdcard/Download`.
   - Resolução Dinâmica de Armazenamento: Consulta nativa via `SDL_GetAndroidExternalStoragePath()` e `rt_data_root()`, eliminando falhas de caminhos estáticos em Android 11/12/13/14/15 com Scoped Storage e múltiplos perfis de usuário.
@@ -132,5 +132,11 @@
 12. **Assinatura do método onUnhandledMessage do SDLActivity**: Corrigida para `boolean onUnhandledMessage(int command, Object param)` no `MainActivity.java`.
 13. **Include <dlfcn.h> no device.c**: Incluído para resolver `dlopen`/`dlerror` no hook de driver Vulkan customizado.
 14. **Linkage extern "C" em escopo global no menu.mm**: Declarações `android_export_saves` e `android_import_saves` posicionadas em escopo de arquivo dentro de `extern "C"`.
+15. **Crash imediato na inicialização no Poco F5 / Adreno 725 (Snapdragon 7+ Gen 2)**:
+    - *Causa 1 (Assincronia do Vulkan Surface)*: No CPU de alta performance do Poco F5, a thread nativa do SDL chamava `SDL_Vulkan_CreateSurface` antes da UI thread do Android anexar a `ANativeWindow`. Corrigido com loop de polling com `SDL_PumpEvents()` e timeout de 5 segundos.
+    - *Causa 2 (Swapchain compositeAlpha OPAQUE)*: O driver Adreno muitas vezes suporta apenas `VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR`. Corrigida a criação do swapchain para selecionar dinamicamente o primeiro composite alpha suportado (`OPAQUE` -> `INHERIT` -> `PRE_MULTIPLIED` -> `POST_MULTIPLIED`).
+    - *Causa 3 (Activity recreation no HyperOS / MIUI)*: O MIUI forçava recriação da Activity por mudança de densidade e modo escuro (`uiMode`, `density`, `smallestScreenSize`). Adicionados ao `android:configChanges` no `AndroidManifest.xml` e ativado o hint `SDL_ANDROID_ALLOW_RECREATE_ACTIVITY`.
+    - *Causa 4 (Falha silenciosa de chdir/fatal)*: Adicionadas rotinas de diagnóstico direto em arquivo (`skyrecomp_fatal.txt` e `skyrecomp_java_crash.log`) gravadas em múltiplos diretórios e com flush imediato.
+
 
 

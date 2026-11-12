@@ -22,6 +22,38 @@ public class MainActivity extends SDLActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        final Thread.UncaughtExceptionHandler defaultHandler = Thread.getDefaultUncaughtExceptionHandler();
+        Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
+            @Override
+            public void uncaughtException(Thread thread, Throwable throwable) {
+                Log.e(TAG, "FATAL UNCAUGHT JAVA EXCEPTION in thread " + thread.getName(), throwable);
+                try {
+                    File[] dirs = new File[] { getExternalFilesDir(null), getFilesDir() };
+                    for (File d : dirs) {
+                        if (d != null) {
+                            if (!d.exists()) d.mkdirs();
+                            File crashFile = new File(d, "skyrecomp_java_crash.log");
+                            java.io.PrintWriter pw = new java.io.PrintWriter(new java.io.FileWriter(crashFile, true));
+                            pw.println("=== JAVA UNCAUGHT EXCEPTION ===");
+                            pw.println("Date: " + new java.util.Date().toString());
+                            pw.println("Thread: " + thread.getName());
+                            throwable.printStackTrace(pw);
+                            pw.println();
+                            pw.flush();
+                            pw.close();
+                        }
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Failed to write java crash log: " + e.getMessage());
+                }
+                if (defaultHandler != null) {
+                    defaultHandler.uncaughtException(thread, throwable);
+                } else {
+                    System.exit(1);
+                }
+            }
+        });
+
         try {
             // Configure display cutout (camera hole punch / notch) to allow true edge-to-edge drawing
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {

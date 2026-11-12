@@ -19,6 +19,7 @@
 #include "gamelib.h"
 #include "paths.h"
 #include "platform.h"
+#include "rt.h"
 
 static char g_root[1024], g_start[1024], g_exe_dir[1024];
 
@@ -82,6 +83,8 @@ static void fail(const char *msg) {
     fprintf(stderr, "%s\n", msg);
 #if defined(__ANDROID__)
     __android_log_print(ANDROID_LOG_FATAL, "SkyRecomp", "FATAL fail: %s", msg);
+    extern void plat_android_fatal(const char *msg);
+    plat_android_fatal(msg);
 #endif
     SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Sky Recomp", msg, NULL);
     exit(1);
@@ -130,6 +133,24 @@ void rt_paths_init(void) {
     }
     mkdirs(root);
     char msg[1400];
+#if defined(__ANDROID__)
+    if (!is_dir(root) || !writable(root)) {
+        LOG("[paths] Warning: root %s is not a writable dir; fallback\n", root);
+    }
+    if (chdir(root) != 0) {
+        LOG("[paths] Warning: chdir(%s) failed: %s; trying app private pref path\n", root, strerror(errno));
+        char *pref_fallback = SDL_GetPrefPath("Apolinario", "SkyRecomp");
+        if (pref_fallback) {
+            mkdirs(pref_fallback);
+            if (chdir(pref_fallback) == 0) {
+                LOG("[paths] chdir(%s) fallback succeeded\n", pref_fallback);
+            } else {
+                LOG("[paths] Warning: chdir to pref path also failed: %s\n", strerror(errno));
+            }
+            SDL_free(pref_fallback);
+        }
+    }
+#else
     if (!is_dir(root) || !writable(root) || chdir(root) != 0) {
 #ifdef _WIN32
         snprintf(msg, sizeof msg, "Sky Recomp can't write to its folder:\n%s\n\nIt keeps game files, saves and seeds "
@@ -140,6 +161,7 @@ void rt_paths_init(void) {
 #endif
         fail(msg);
     }
+#endif
     if (!getcwd(g_root, sizeof g_root)) snprintf(g_root, sizeof g_root, "%s", root);
     fprintf(stderr, "[paths] data: %s\n", g_root);
 }
