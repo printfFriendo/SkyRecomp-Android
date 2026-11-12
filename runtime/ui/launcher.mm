@@ -238,11 +238,16 @@ static bool file_exists(const std::string &p) {
 static std::string check_copied_files(const std::string &root) {
 #if defined(__ANDROID__)
     if (gamelib_present(root.c_str())) {
-        if (file_exists(root + "/romfs.bin") || file_exists(root + "/romfs/region_common") || file_exists(root + "/romfs/Object")) {
+        if (file_exists(root + "/romfs.bin") || file_exists(root + "/romfs/region_common") || file_exists(root + "/romfs/Object") ||
+            file_exists("romfs.bin") || file_exists(std::string(rt_data_root()) + "/romfs.bin")) {
             return "";
         }
         char nsp_found[1024];
-        if (nsp_find_in_dir(root.c_str(), nsp_found, sizeof(nsp_found))) {
+        if (nsp_find_in_dir(root.c_str(), nsp_found, sizeof(nsp_found)) ||
+            nsp_find_in_dir(".", nsp_found, sizeof(nsp_found)) ||
+            nsp_find_in_dir(rt_data_root(), nsp_found, sizeof(nsp_found)) ||
+            nsp_find_in_dir("/storage/emulated/0/Download", nsp_found, sizeof(nsp_found)) ||
+            nsp_find_in_dir("/sdcard/Download", nsp_found, sizeof(nsp_found))) {
             return "ROM package found (ready to extract)";
         }
         return "Game data missing";
@@ -415,6 +420,10 @@ static void *extract_thread(void *) {
         if (found_rom.empty()) {
             char r_found[1024];
             if (nsp_find_in_dir(g_root.c_str(), r_found, sizeof(r_found))) found_rom = r_found;
+            else if (nsp_find_in_dir(".", r_found, sizeof(r_found))) found_rom = r_found;
+            else if (nsp_find_in_dir(rt_data_root(), r_found, sizeof(r_found))) found_rom = r_found;
+            else if (nsp_find_in_dir("/storage/emulated/0/Download", r_found, sizeof(r_found))) found_rom = r_found;
+            else if (nsp_find_in_dir("/sdcard/Download", r_found, sizeof(r_found))) found_rom = r_found;
             else if (!src.empty() && nsp_find_in_dir(src.c_str(), r_found, sizeof(r_found))) found_rom = r_found;
             else if (!src.empty() && nsp_is_rom(src.c_str())) found_rom = src;
         }
@@ -1675,10 +1684,14 @@ extern "C" void launcher_run(const char *root) {
 
 #if defined(__ANDROID__)
                 char nsp_detected[1024] = "";
-                bool has_rom_package = nsp_find_in_dir(rt_data_root(), nsp_detected, sizeof(nsp_detected));
+                bool has_rom_package = nsp_find_in_dir(rt_data_root(), nsp_detected, sizeof(nsp_detected)) ||
+                                       nsp_find_in_dir(".", nsp_detected, sizeof(nsp_detected)) ||
+                                       nsp_find_in_dir(g_root.c_str(), nsp_detected, sizeof(nsp_detected)) ||
+                                       nsp_find_in_dir("/storage/emulated/0/Download", nsp_detected, sizeof(nsp_detected)) ||
+                                       nsp_find_in_dir("/sdcard/Download", nsp_detected, sizeof(nsp_detected));
                 char src_buf[1024];
                 if (has_rom_package) {
-                    snprintf(src_buf, sizeof(src_buf), "Nintendo Switch ROM detected:\n%s\n\nClick 'Extract ROM & Play' below to extract RomFS and launch natively on Android!",
+                    snprintf(src_buf, sizeof(src_buf), "Nintendo Switch ROM detected:\n%s\n\nClick 'Extract ROM and Play' below to extract RomFS and launch natively on Android!",
                              nsp_detected);
                 } else {
                     snprintf(src_buf, sizeof(src_buf), "Place your game ROM (.nsp / .xci) or 'romfs.bin' directly in:\n%s/\n\nSky Recomp will automatically extract and launch the game.", rt_data_root());

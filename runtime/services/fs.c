@@ -12,6 +12,7 @@
 #include "../ipc.h"
 #include "../settings.h"
 #include "../mods.h"
+#include "../paths.h"
 
 #define FS_PATH_NOT_FOUND MAKE_RESULT(2, 1)
 #define FS_PATH_EXISTS MAKE_RESULT(2, 2)
@@ -422,6 +423,16 @@ static Service *open_romfs_storage(void) {
         char path[1024];
         snprintf(path, sizeof path, "%s.bin", g_romfs_dir);  // extracted/romfs.bin
         romfs_fd = open(path, O_RDONLY);
+#if defined(__ANDROID__)
+        if (romfs_fd < 0) {
+            romfs_fd = open("romfs.bin", O_RDONLY);
+        }
+        if (romfs_fd < 0) {
+            char alt[1024];
+            snprintf(alt, sizeof alt, "%s/romfs.bin", rt_data_root());
+            romfs_fd = open(alt, O_RDONLY);
+        }
+#endif
         if (romfs_fd < 0) FATAL("cannot open %s (set up the game files on the start screen)\n", path);
         rom_index(romfs_fd);
     }
