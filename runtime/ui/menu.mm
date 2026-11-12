@@ -35,6 +35,8 @@ extern "C" int game_in_play(void);  // hle/warp.c
 void save_editor_on_open(void);
 #if defined(__ANDROID__)
 void touch_overlay_render(float display_w, float display_h, float scale);
+bool android_export_saves(char *status, size_t status_sz);
+bool android_import_saves(char *status, size_t status_sz);
 #endif
 void rando_tab_draw(float scale);
 bool warp_tab_draw(float scale);  // warp_tab.mm: true when a warp started
@@ -332,7 +334,18 @@ static void perf_overlay_draw(ImGuiIO &io, float scale) {
                                      ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoFocusOnAppearing);
     if (g_settings.perf_overlay == PERF_FPS) {
         ImGui::SetWindowFontScale(0.65f);
+#if defined(__ANDROID__)
+        int sec = -1, pct = -1;
+        SDL_PowerState pwr = SDL_GetPowerInfo(&sec, &pct);
+        if (pct >= 0) {
+            ImGui::Text("%.0f  %.1f ms  |  BAT %d%%%s", s.fps, s.frame_ms_avg, pct,
+                        pwr == SDL_POWERSTATE_CHARGING ? "+" : "");
+        } else {
+            ImGui::Text("%.0f  %.1f ms", s.fps, s.frame_ms_avg);
+        }
+#else
         ImGui::Text("%.0f  %.1f ms", s.fps, s.frame_ms_avg);
+#endif
         ImGui::End();
         ImGui::PopStyleVar();
         return;
@@ -362,6 +375,15 @@ static void perf_overlay_draw(ImGuiIO &io, float scale) {
         perf_cell("max %.1f ms", s.frame_ms_max);
         ImGui::EndTable();
     }
+#if defined(__ANDROID__)
+    int sec = -1, pct = -1;
+    SDL_PowerState pwr = SDL_GetPowerInfo(&sec, &pct);
+    if (pct >= 0) {
+        ImGui::TextColored(ImVec4(0.93f, 0.76f, 0.33f, 1), "Battery: %d%% %s", pct,
+                           pwr == SDL_POWERSTATE_CHARGING ? "[Charging]" :
+                           pwr == SDL_POWERSTATE_CHARGED ? "[Full]" : "");
+    }
+#endif
     float top = s.frame_ms_max > 50 ? s.frame_ms_max : 50;
     ImGui::PlotLines("##ft", s.frame_ms, PERF_HISTORY, 0, NULL, 0, top, ImVec2(360 * scale, 48 * scale));
     ImGui::TextDisabled("%s", s.gpu_name[0] ? s.gpu_name : "GPU");
@@ -849,6 +871,21 @@ static void tab_about(void) {
     ImGui::TextUnformatted("Open / close this menu:  F1, Esc, the controller's Home / Xbox / PlayStation button, or Back + Start");
     ImGui::TextUnformatted("Switch tabs:  L / R  (Q / E)        Back:  B  (Esc)");
     ImGui::TextUnformatted("Fullscreen:  F11 / Alt+Enter");
+#if defined(__ANDROID__)
+    ImGui::Spacing();
+    header("Save Data Management");
+    ImGui::TextUnformatted("App Saves: /sdcard/Android/data/com.apolinario.skyrecomp/files/save");
+    static char s_save_msg[128] = "";
+    if (ImGui::Button("Export Saves to /sdcard/Download/SkyRecomp_Saves", ImVec2(-FLT_MIN, 0))) {
+        android_export_saves(s_save_msg, sizeof(s_save_msg));
+    }
+    if (ImGui::Button("Import Saves from /sdcard/Download/SkyRecomp_Saves", ImVec2(-FLT_MIN, 0))) {
+        android_import_saves(s_save_msg, sizeof(s_save_msg));
+    }
+    if (s_save_msg[0]) {
+        ImGui::TextColored(ImVec4(0.93f, 0.76f, 0.33f, 1), "%s", s_save_msg);
+    }
+#endif
 }
 
 extern "C" bool inventory_overlay_wanted(void);

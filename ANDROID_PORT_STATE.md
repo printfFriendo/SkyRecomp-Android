@@ -87,13 +87,15 @@
 - `runtime/nvn/vulkan/textures.c`: Amostradores com anisotropia condicionados a `samplerAnisotropy`.
 - `runtime/nvn/custom_tex.c`: `SDL_LoadBMP` no Android em `load`.
 - `runtime/hle/input.c`: Entrada de toque atômica (`touch_set_buttons`, `touch_set_sticks`) integrada ao polling de HID.
-- `runtime/ui/touch_overlay.h`, `runtime/ui/touch_overlay.cpp`: Implementação completa do overlay tátil mobile com escala, opacidade, feedback tátil (vibração) e offsets customizáveis de posição.
-- `runtime/ui/controls_ui.mm`: Seção de configuração de Touch Screen no menu de controles do jogo com sliders de opacidade, escala, alternância de vibração e editor de layout (posições X/Y dos analógicos, botões e d-pad).
-- `runtime/settings.h`, `runtime/settings.c`: Persistência de preferências de toque (`touch_enabled`, `touch_haptics`, `touch_opacity`, `touch_scale`, offsets de layout) no arquivo `skyrecomp.ini`.
-- `runtime/ui/menu.mm`: Suporte a `SDL_SCANCODE_AC_BACK`, `menu_toggle`, fontes Android, rendering do overlay de toque e seletor rápido de Presets de Performance Mobile (Battery Saver, Balanced, Performance, Ultra).
+- `runtime/ui/touch_overlay.h`, `runtime/ui/touch_overlay.cpp`: Implementação completa do overlay tátil mobile com escala, opacidade, feedback tátil (vibração), Safe Area Inset para entalhes/notches e offsets customizáveis de posição.
+- `runtime/ui/controls_ui.mm`: Seção de configuração de Touch Screen no menu de controles do jogo com sliders de opacidade, escala, alternância de vibração, Safe Area Inset e editor de layout (posições X/Y dos analógicos, botões e d-pad).
+- `runtime/settings.h`, `runtime/settings.c`: Persistência de preferências de toque (`touch_enabled`, `touch_haptics`, `touch_opacity`, `touch_scale`, `touch_safe_inset`, offsets de layout) no arquivo `skyrecomp.ini`.
+- `runtime/ui/menu.mm`: Suporte a `SDL_SCANCODE_AC_BACK`, `menu_toggle`, fontes Android, rendering do overlay de toque, seletor de Presets de Performance Mobile, telemetria de bateria no HUD e gerenciador de saves.
+- `runtime/services/audio.c`: Implementação de `audio_pause_all()` e `audio_resume_all()` com sincronização via mutex.
+- `runtime/paths.c`: Funções `android_export_saves` e `android_import_saves` para backup/sincronização de saves com a pasta Downloads do aparelho.
 - `runtime/ui/launcher.mm`: Orientações de dados para Android e fallback claro caso a caixa de diálogo de diretório não esteja disponível no sistema.
-- `runtime/nvn/vulkan/device.c`: Salvamento automático de pipeline cache Vulkan ao entrar em background e hook para carregamento dinâmico de drivers Vulkan customizados (Turnip/Mesa em `libvulkan_custom.so`).
-- `android/app/src/main/java/com/apolinario/skyrecomp/MainActivity.java`: Handler de mensagem SDL (`onUnhandledMessage`) integrando haptic click via `Vibrator` / `VibratorManager`.
+- `runtime/nvn/vulkan/device.c`: Salvamento automático de pipeline cache Vulkan ao entrar em background, auto-pause/resume de áudio e hook para carregamento dinâmico de drivers Vulkan customizados (Turnip/Mesa em `libvulkan_custom.so`).
+- `android/app/src/main/java/com/apolinario/skyrecomp/MainActivity.java`: Handler de mensagem SDL (`onUnhandledMessage`) integrando haptic click, display cutout `SHORT_EDGES` e modo imersivo fixo.
 - `tools/build_game_android.py`: Construtor multi-thread automatizado para NDK Clang ARM64-v8a gerando `libskygame.so` a partir do ExeFS do Switch.
 - `tools/gen_smaa.py`, `third_party/smaa/smaa_hlsl.inc`: Gerador do include de shader SMAA.
 - `tools/skygame_stubs.c`: Stubs de tabelas de símbolos para compilação antes da extração da ROM.
@@ -115,5 +117,6 @@
 11. **Giroscópio / Motion Aiming**: Sensores `SDL_SENSOR_GYRO` e `SDL_SENSOR_ACCEL` do smartphone abertos e mapeados em tempo real para a emulação do MotionPlus do Switch.
 12. **Assinatura do método onUnhandledMessage do SDLActivity**: Corrigida para `boolean onUnhandledMessage(int command, Object param)` no `MainActivity.java`.
 13. **Include <dlfcn.h> no device.c**: Incluído para resolver `dlopen`/`dlerror` no hook de driver Vulkan customizado.
+14. **Linkage extern "C" em escopo global no menu.mm**: Declarações `android_export_saves` e `android_import_saves` posicionadas em escopo de arquivo dentro de `extern "C"`.
 
 

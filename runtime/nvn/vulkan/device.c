@@ -953,8 +953,14 @@ int ui_run(void) {
             }
 #if defined(__ANDROID__)
             if (e.type == SDL_EVENT_WILL_ENTER_BACKGROUND || e.type == SDL_EVENT_DID_ENTER_BACKGROUND) {
-                LOG("[vk] Android background event: saving shader pipeline cache\n");
+                LOG("[vk] Android background event: saving shader pipeline cache & pausing audio\n");
                 vk_pipeline_cache_save();
+                extern void audio_pause_all(void);
+                audio_pause_all();
+            } else if (e.type == SDL_EVENT_WILL_ENTER_FOREGROUND || e.type == SDL_EVENT_DID_ENTER_FOREGROUND) {
+                LOG("[vk] Android foreground event: resuming audio\n");
+                extern void audio_resume_all(void);
+                audio_resume_all();
             }
 #endif
             extern bool input_user_blocked(const SDL_Event *e);

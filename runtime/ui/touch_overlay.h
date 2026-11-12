@@ -34,6 +34,8 @@ void touch_overlay_set_haptics(bool enabled);
 void touch_overlay_get_offsets(float *lx, float *ly, float *rx, float *ry, float *fx, float *fy, float *dx, float *dy);
 void touch_overlay_set_offsets(float lx, float ly, float rx, float ry, float fx, float fy, float dx, float dy);
 void touch_overlay_reset_offsets(void);
+float touch_overlay_get_safe_inset(void);
+void touch_overlay_set_safe_inset(float inset);
 
 // Feed into runtime/hle/input.c
 void touch_set_buttons(uint64_t buttons);

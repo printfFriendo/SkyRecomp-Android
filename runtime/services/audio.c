@@ -1344,6 +1344,24 @@ static void audio_track(Renderer *r, AudioOut *a) {
     pthread_mutex_unlock(&g_track_lock);
 }
 
+void audio_pause_all(void) {
+    pthread_mutex_lock(&g_track_lock);
+    for (int i = 0; i < 8; i++) {
+        if (g_rens[i] && g_rens[i]->stream) SDL_PauseAudioStreamDevice(g_rens[i]->stream);
+        if (g_outs[i] && g_outs[i]->stream) SDL_PauseAudioStreamDevice(g_outs[i]->stream);
+    }
+    pthread_mutex_unlock(&g_track_lock);
+}
+
+void audio_resume_all(void) {
+    pthread_mutex_lock(&g_track_lock);
+    for (int i = 0; i < 8; i++) {
+        if (g_rens[i] && g_rens[i]->stream) SDL_ResumeAudioStreamDevice(g_rens[i]->stream);
+        if (g_outs[i] && g_outs[i]->stream) SDL_ResumeAudioStreamDevice(g_outs[i]->stream);
+    }
+    pthread_mutex_unlock(&g_track_lock);
+}
+
 static void audren_free(Renderer *r) {
     r->quit = true;
     pthread_join(r->thread, NULL);

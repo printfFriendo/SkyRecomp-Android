@@ -241,3 +241,78 @@ void rt_window_icon(SDL_Window *w) {
     (void)w;
 #endif
 }
+
+#if defined(__ANDROID__)
+#include <SDL3/SDL_system.h>
+
+static bool copy_file_direct(const char *src, const char *dst) {
+    FILE *in = fopen(src, "rb");
+    if (!in) return false;
+    FILE *out = fopen(dst, "wb");
+    if (!out) { fclose(in); return false; }
+    char buf[16384];
+    size_t n;
+    while ((n = fread(buf, 1, sizeof(buf), in)) > 0) {
+        fwrite(buf, 1, n, out);
+    }
+    fclose(in);
+    fclose(out);
+    return true;
+}
+
+static bool copy_dir_recursive(const char *src, const char *dst) {
+    DIR *d = opendir(src);
+    if (!d) return false;
+    mkdirs(dst);
+    struct dirent *de;
+    while ((de = readdir(d)) != NULL) {
+        if (!strcmp(de->d_name, ".") || !strcmp(de->d_name, "..")) continue;
+        char s_path[1024], d_path[1024];
+        snprintf(s_path, sizeof s_path, "%s/%s", src, de->d_name);
+        snprintf(d_path, sizeof d_path, "%s/%s", dst, de->d_name);
+        if (is_dir(s_path)) {
+            copy_dir_recursive(s_path, d_path);
+        } else {
+            copy_file_direct(s_path, d_path);
+        }
+    }
+    closedir(d);
+    return true;
+}
+
+bool android_export_saves(char *status, size_t status_sz) {
+    const char *src = "/sdcard/Android/data/com.apolinario.skyrecomp/files/save";
+    const char *dst = "/sdcard/Download/SkyRecomp_Saves";
+    if (!is_dir(src)) {
+        snprintf(status, status_sz, "No save directory found in app files.");
+        return false;
+    }
+    mkdirs(dst);
+    if (copy_dir_recursive(src, dst)) {
+        snprintf(status, status_sz, "Exported successfully to Download/SkyRecomp_Saves!");
+        SDL_ShowAndroidToast("Saves exported to Downloads!", 0, -1, 0, 0);
+        return true;
+    } else {
+        snprintf(status, status_sz, "Failed to export saves.");
+        return false;
+    }
+}
+
+bool android_import_saves(char *status, size_t status_sz) {
+    const char *src = "/sdcard/Download/SkyRecomp_Saves";
+    const char *dst = "/sdcard/Android/data/com.apolinario.skyrecomp/files/save";
+    if (!is_dir(src)) {
+        snprintf(status, status_sz, "No saves found in /sdcard/Download/SkyRecomp_Saves.");
+        return false;
+    }
+    mkdirs(dst);
+    if (copy_dir_recursive(src, dst)) {
+        snprintf(status, status_sz, "Imported successfully from Download/SkyRecomp_Saves!");
+        SDL_ShowAndroidToast("Saves imported successfully!", 0, -1, 0, 0);
+        return true;
+    } else {
+        snprintf(status, status_sz, "Failed to import saves.");
+        return false;
+    }
+}
+#endif

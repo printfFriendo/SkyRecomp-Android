@@ -82,6 +82,12 @@ extern "C" void controls_bindings_draw(float scale) {
             settings_save();
         }
 
+        float safe_inset = touch_overlay_get_safe_inset();
+        if (ImGui::SliderFloat("Safe Area Inset (Notch/Cutout)", &safe_inset, 0.0f, 100.0f, "%.0f px")) {
+            touch_overlay_set_safe_inset(safe_inset);
+            settings_save();
+        }
+
         if (ImGui::TreeNode("Customize Button Positions (Layout)")) {
             float lx, ly, rx, ry, fx, fy, dx, dy;
             touch_overlay_get_offsets(&lx, &ly, &rx, &ry, &fx, &fy, &dx, &dy);

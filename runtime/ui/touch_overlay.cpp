@@ -41,6 +41,7 @@ static bool g_enabled = true;
 static bool g_user_haptics = true;
 static float g_user_opacity = 0.65f;
 static float g_user_scale = 1.0f;
+static float g_safe_inset = 0.0f;
 static float g_lstick_x = 0.0f, g_lstick_y = 0.0f;
 static float g_rstick_x = 0.0f, g_rstick_y = 0.0f;
 static float g_face_x = 0.0f, g_face_y = 0.0f;
@@ -89,7 +90,15 @@ void touch_overlay_set_offsets(float lx, float ly, float rx, float ry, float fx,
     g_dpad_y = dy;
 }
 
+float touch_overlay_get_safe_inset(void) { return g_safe_inset; }
+void touch_overlay_set_safe_inset(float inset) {
+    if (inset < 0.0f) inset = 0.0f;
+    if (inset > 120.0f) inset = 120.0f;
+    g_safe_inset = inset;
+}
+
 void touch_overlay_reset_offsets(void) {
+    g_safe_inset = 0.0f;
     g_lstick_x = g_lstick_y = 0.0f;
     g_rstick_x = g_rstick_y = 0.0f;
     g_face_x = g_face_y = 0.0f;
@@ -131,15 +140,15 @@ static inline float dist_sq(float x1, float y1, float x2, float y2) {
 static int hit_test(float px, float py, float W, float H, float s) {
     s *= g_user_scale;
     // 1. Left Stick (Base center)
-    float lx = (140.0f + g_lstick_x) * s, ly = (H - 140.0f * s) + g_lstick_y * s, lr = 90.0f * s;
+    float lx = (140.0f + g_lstick_x + g_safe_inset) * s, ly = (H - 140.0f * s) + g_lstick_y * s, lr = 90.0f * s;
     if (dist_sq(px, py, lx, ly) <= lr * lr) return CTRL_LSTICK;
 
     // 2. Right Stick (Base center)
-    float rx = (W - 280.0f * s) + g_rstick_x * s, ry = (H - 140.0f * s) + g_rstick_y * s, rr = 80.0f * s;
+    float rx = (W - (280.0f + g_safe_inset) * s) + g_rstick_x * s, ry = (H - 140.0f * s) + g_rstick_y * s, rr = 80.0f * s;
     if (dist_sq(px, py, rx, ry) <= rr * rr) return CTRL_RSTICK;
 
     // 3. Face buttons (A, B, X, Y)
-    float fcx = (W - 110.0f * s) + g_face_x * s, fcy = (H - 140.0f * s) + g_face_y * s;
+    float fcx = (W - (110.0f + g_safe_inset) * s) + g_face_x * s, fcy = (H - 140.0f * s) + g_face_y * s;
     float foff = 46.0f * s, fr = 32.0f * s;
     if (dist_sq(px, py, fcx + foff, fcy) <= fr * fr) return BTN_A;
     if (dist_sq(px, py, fcx, fcy + foff) <= fr * fr) return BTN_B;
@@ -147,7 +156,7 @@ static int hit_test(float px, float py, float W, float H, float s) {
     if (dist_sq(px, py, fcx - foff, fcy) <= fr * fr) return BTN_Y;
 
     // 4. D-Pad (Up, Down, Left, Right)
-    float dcx = (140.0f + g_dpad_x) * s, dcy = (H - 290.0f * s) + g_dpad_y * s;
+    float dcx = (140.0f + g_dpad_x + g_safe_inset) * s, dcy = (H - 290.0f * s) + g_dpad_y * s;
     float doff = 42.0f * s, dr = 28.0f * s;
     if (dist_sq(px, py, dcx, dcy - doff) <= dr * dr) return BTN_UP;
     if (dist_sq(px, py, dcx, dcy + doff) <= dr * dr) return BTN_DOWN;
@@ -157,13 +166,13 @@ static int hit_test(float px, float py, float W, float H, float s) {
     // 5. Shoulder buttons (L, ZL, R, ZR)
     float sh_w = 90.0f * s, sh_h = 42.0f * s;
     // L
-    if (px >= 30.0f * s && px <= 30.0f * s + sh_w && py >= 30.0f * s && py <= 30.0f * s + sh_h) return BTN_L;
+    if (px >= (30.0f + g_safe_inset) * s && px <= (30.0f + g_safe_inset) * s + sh_w && py >= 30.0f * s && py <= 30.0f * s + sh_h) return BTN_L;
     // ZL
-    if (px >= 135.0f * s && px <= 135.0f * s + sh_w && py >= 25.0f * s && py <= 25.0f * s + sh_h) return BTN_ZL;
+    if (px >= (135.0f + g_safe_inset) * s && px <= (135.0f + g_safe_inset) * s + sh_w && py >= 25.0f * s && py <= 25.0f * s + sh_h) return BTN_ZL;
     // R
-    if (px >= W - 30.0f * s - sh_w && px <= W - 30.0f * s && py >= 30.0f * s && py <= 30.0f * s + sh_h) return BTN_R;
+    if (px >= W - (30.0f + g_safe_inset) * s - sh_w && px <= W - (30.0f + g_safe_inset) * s && py >= 30.0f * s && py <= 30.0f * s + sh_h) return BTN_R;
     // ZR
-    if (px >= W - 135.0f * s - sh_w && px <= W - 135.0f * s && py >= 25.0f * s && py <= 25.0f * s + sh_h) return BTN_ZR;
+    if (px >= W - (135.0f + g_safe_inset) * s - sh_w && px <= W - (135.0f + g_safe_inset) * s && py >= 25.0f * s && py <= 25.0f * s + sh_h) return BTN_ZR;
 
     // 6. Utility (Minus, Menu, Plus)
     float ut_r = 26.0f * s;
@@ -179,8 +188,8 @@ static void update_state(float W, float H, float s) {
     uint64_t buttons = 0;
     int32_t lx = 0, ly = 0, rx = 0, ry = 0;
 
-    float l_cx = (140.0f + g_lstick_x) * s, l_cy = (H - 140.0f * s) + g_lstick_y * s, l_r = 75.0f * s;
-    float r_cx = (W - 280.0f * s) + g_rstick_x * s, r_cy = (H - 140.0f * s) + g_rstick_y * s, r_r = 65.0f * s;
+    float l_cx = (140.0f + g_lstick_x + g_safe_inset) * s, l_cy = (H - 140.0f * s) + g_lstick_y * s, l_r = 75.0f * s;
+    float r_cx = (W - (280.0f + g_safe_inset) * s) + g_rstick_x * s, r_cy = (H - 140.0f * s) + g_rstick_y * s, r_r = 65.0f * s;
 
     for (int i = 0; i < MAX_FINGERS; i++) {
         if (!g_fingers[i].active) continue;
@@ -332,7 +341,7 @@ void touch_overlay_render(float display_w, float display_h, float scale) {
     ImDrawList *dl = ImGui::GetForegroundDrawList();
 
     // 1. Left Analog Stick (Movement)
-    float lx = (140.0f + g_lstick_x) * s, ly = (H - 140.0f * s) + g_lstick_y * s, lr = 75.0f * s;
+    float lx = (140.0f + g_lstick_x + g_safe_inset) * s, ly = (H - 140.0f * s) + g_lstick_y * s, lr = 75.0f * s;
     dl->AddCircleFilled(ImVec2(lx, ly), lr, modulate_alpha(IM_COL32(25, 25, 25, 80), g_user_opacity));
     dl->AddCircle(ImVec2(lx, ly), lr, modulate_alpha(IM_COL32(180, 180, 180, 100), g_user_opacity), 0, 2.0f);
 
@@ -342,7 +351,7 @@ void touch_overlay_render(float display_w, float display_h, float scale) {
     dl->AddCircle(ImVec2(thumb_lx, thumb_ly), 32.0f * s, modulate_alpha(IM_COL32(255, 255, 255, 200), g_user_opacity), 0, 2.0f);
 
     // 2. Right Analog Stick (Camera / Sword)
-    float rx = (W - 280.0f * s) + g_rstick_x * s, ry = (H - 140.0f * s) + g_rstick_y * s, rr = 65.0f * s;
+    float rx = (W - (280.0f + g_safe_inset) * s) + g_rstick_x * s, ry = (H - 140.0f * s) + g_rstick_y * s, rr = 65.0f * s;
     dl->AddCircleFilled(ImVec2(rx, ry), rr, modulate_alpha(IM_COL32(25, 25, 25, 80), g_user_opacity));
     dl->AddCircle(ImVec2(rx, ry), rr, modulate_alpha(IM_COL32(180, 180, 180, 100), g_user_opacity), 0, 2.0f);
 
@@ -352,7 +361,7 @@ void touch_overlay_render(float display_w, float display_h, float scale) {
     dl->AddCircle(ImVec2(thumb_rx, thumb_ry), 28.0f * s, modulate_alpha(IM_COL32(255, 255, 255, 200), g_user_opacity), 0, 2.0f);
 
     // 3. Face buttons (A, B, X, Y)
-    float fcx = (W - 110.0f * s) + g_face_x * s, fcy = (H - 140.0f * s) + g_face_y * s;
+    float fcx = (W - (110.0f + g_safe_inset) * s) + g_face_x * s, fcy = (H - 140.0f * s) + g_face_y * s;
     float foff = 46.0f * s, fr = 26.0f * s;
     draw_btn(dl, fcx + foff, fcy, fr, "A", (g_active_buttons & (1ull << BTN_A)) != 0, IM_COL32(230, 50, 50, 190));
     draw_btn(dl, fcx, fcy + foff, fr, "B", (g_active_buttons & (1ull << BTN_B)) != 0, IM_COL32(230, 180, 40, 190));
@@ -360,7 +369,7 @@ void touch_overlay_render(float display_w, float display_h, float scale) {
     draw_btn(dl, fcx - foff, fcy, fr, "Y", (g_active_buttons & (1ull << BTN_Y)) != 0, IM_COL32(40, 190, 80, 190));
 
     // 4. D-Pad (Up, Down, Left, Right)
-    float dcx = (140.0f + g_dpad_x) * s, dcy = (H - 290.0f * s) + g_dpad_y * s;
+    float dcx = (140.0f + g_dpad_x + g_safe_inset) * s, dcy = (H - 290.0f * s) + g_dpad_y * s;
     float doff = 42.0f * s, dr = 24.0f * s;
     draw_btn(dl, dcx, dcy - doff, dr, "^", (g_active_buttons & (1ull << BTN_UP)) != 0, IM_COL32(236, 194, 84, 180));
     draw_btn(dl, dcx, dcy + doff, dr, "v", (g_active_buttons & (1ull << BTN_DOWN)) != 0, IM_COL32(236, 194, 84, 180));
@@ -369,10 +378,10 @@ void touch_overlay_render(float display_w, float display_h, float scale) {
 
     // 5. Shoulder buttons (L, ZL, R, ZR)
     float sh_w = 90.0f * s, sh_h = 38.0f * s;
-    draw_capsule_btn(dl, 30.0f * s, 30.0f * s, sh_w, sh_h, "L", (g_active_buttons & (1ull << BTN_L)) != 0);
-    draw_capsule_btn(dl, 135.0f * s, 25.0f * s, sh_w, sh_h, "ZL", (g_active_buttons & (1ull << BTN_ZL)) != 0);
-    draw_capsule_btn(dl, W - 30.0f * s - sh_w, 30.0f * s, sh_w, sh_h, "R", (g_active_buttons & (1ull << BTN_R)) != 0);
-    draw_capsule_btn(dl, W - 135.0f * s - sh_w, 25.0f * s, sh_w, sh_h, "ZR", (g_active_buttons & (1ull << BTN_ZR)) != 0);
+    draw_capsule_btn(dl, (30.0f + g_safe_inset) * s, 30.0f * s, sh_w, sh_h, "L", (g_active_buttons & (1ull << BTN_L)) != 0);
+    draw_capsule_btn(dl, (135.0f + g_safe_inset) * s, 25.0f * s, sh_w, sh_h, "ZL", (g_active_buttons & (1ull << BTN_ZL)) != 0);
+    draw_capsule_btn(dl, W - (30.0f + g_safe_inset) * s - sh_w, 30.0f * s, sh_w, sh_h, "R", (g_active_buttons & (1ull << BTN_R)) != 0);
+    draw_capsule_btn(dl, W - (135.0f + g_safe_inset) * s - sh_w, 25.0f * s, sh_w, sh_h, "ZR", (g_active_buttons & (1ull << BTN_ZR)) != 0);
 
     // 6. Utility (Minus, Menu, Plus)
     float ut_r = 22.0f * s;

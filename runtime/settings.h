@@ -97,6 +97,7 @@ typedef struct {
     float touch_rstick_x, touch_rstick_y;
     float touch_face_x, touch_face_y;
     float touch_dpad_x, touch_dpad_y;
+    float touch_safe_inset;
 #endif
 } Settings;
 

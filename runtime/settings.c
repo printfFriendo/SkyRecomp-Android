@@ -67,6 +67,7 @@ Settings g_settings = {
     .touch_face_y = 0.0f,
     .touch_dpad_x = 0.0f,
     .touch_dpad_y = 0.0f,
+    .touch_safe_inset = 0.0f,
 #endif
 };
 
@@ -296,6 +297,10 @@ void settings_load(void) {
                                       g_settings.touch_face_x, g_settings.touch_face_y,
                                       g_settings.touch_dpad_x, g_settings.touch_dpad_y);
         }
+        else if (!strcmp(key, "touch_safe_inset")) {
+            g_settings.touch_safe_inset = (float)atof(val);
+            touch_overlay_set_safe_inset(g_settings.touch_safe_inset);
+        }
 #endif
         else if (!strcmp(key, "prompts")) g_settings.prompts = !strcmp(val, "nintendo") ? PROMPTS_NINTENDO : !strcmp(val, "xbox") ?
                                                               PROMPTS_XBOX : !strcmp(val, "playstation") ? PROMPTS_PLAYSTATION :
@@ -429,6 +434,7 @@ void settings_save(void) {
     fprintf(f, "touch_rstick_x = %.1f\ntouch_rstick_y = %.1f\n", rx, ry);
     fprintf(f, "touch_face_x = %.1f\ntouch_face_y = %.1f\n", fx, fy);
     fprintf(f, "touch_dpad_x = %.1f\ntouch_dpad_y = %.1f\n", dx, dy);
+    fprintf(f, "touch_safe_inset = %.1f\n", touch_overlay_get_safe_inset());
 #endif
     fclose(f);
 }

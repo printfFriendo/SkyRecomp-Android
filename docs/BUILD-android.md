@@ -129,6 +129,7 @@ The Android port includes a custom touch overlay:
 - **Physical Gamepads**: Bluetooth or USB controllers (Xbox, DualShock/DualSense, Switch Pro Controller) are recognized automatically via SDL3.
 - **Gyroscope & Motion Aiming**: Physical device sensors (`SDL_SENSOR_GYRO` and `SDL_SENSOR_ACCEL`) are mapped to Switch MotionPlus / SixAxis aim and calibrated via `gyro_sens`.
 - **Haptic Tactile Feedback**: Physical device micro-vibration triggers on virtual button touch for tactile confirmation.
+- **Display Cutout & Safe Area**: Fullscreen layout extends past camera hole-punches (`SHORT_EDGES` mode), and an adjustable Safe Area Inset slider ensures buttons never collide with rounded corners or notches.
 - **Touch Layout Customization**: Toggle on-screen controls, adjust opacity (10% to 100%), scale (0.5x to 2.0x), and customize the physical position (X/Y offsets) of sticks, action buttons, and D-Pad directly in the in-game *Controls* tab, with preferences automatically saved to `skyrecomp.ini`.
 
 ---
@@ -143,7 +144,22 @@ Under the in-game *Video* settings tab, Android users can select one-tap presets
 
 ---
 
-## 8. Custom Vulkan Driver Support (Adreno / Turnip)
+## 8. Battery Monitoring & Audio Lifecycle
+
+- **Battery Telemetry in HUD**: When the FPS / Performance overlay is enabled (`F10`), the HUD displays the real-time battery charge level and charging status.
+- **Audio Lifecycle Auto-Pause**: When switching apps or receiving calls, audio streams are automatically paused to conserve battery and avoid OS audio focus conflicts, resuming immediately upon returning.
+
+---
+
+## 9. Save Data Backup & PC Synchronization
+
+Under the *About / System* menu tab, Android users can:
+- **Export Saves**: Copies all save slots from the app's internal storage to `/sdcard/Download/SkyRecomp_Saves/` for easy backup or transfer to PC.
+- **Import Saves**: Restores save files from `/sdcard/Download/SkyRecomp_Saves/` back into the game.
+
+---
+
+## 10. Custom Vulkan Driver Support (Adreno / Turnip)
 
 For devices with Qualcomm Adreno GPUs, custom Mesa Turnip drivers can be used by placing the driver shared library as:
 ```
@@ -153,7 +169,7 @@ Or by specifying the environment variable `SKYRECOMP_VK_DRIVER=<path>`. SkyRecom
 
 ---
 
-## 9. Recompiling Game Code for Android (tools/build_game_android.py)
+## 11. Recompiling Game Code for Android (tools/build_game_android.py)
 
 To build the static C recompilation of the game code (`libskygame.so`) for Android ARM64:
 
@@ -172,13 +188,13 @@ The script automatically locates the Android NDK, runs parallel C generation (`t
 
 ---
 
-## 10. Background Shader Cache Persistence
+## 12. Background Shader Cache Persistence
 
 On Android, Vulkan pipeline caches are automatically serialized to storage whenever the application enters the background or loses focus (`SDL_EVENT_WILL_ENTER_BACKGROUND` / `SDL_EVENT_DID_ENTER_BACKGROUND`). This ensures compiled shaders and pipeline states are preserved across app switches without frame drops or recompilation stutter upon resume.
 
 ---
 
-## 11. Diagnostics & Troubleshooting
+## 13. Diagnostics & Troubleshooting
 
 ### Real-Time Logcat Monitoring
 To view logs, warnings, and shader compilation messages in real-time:
