@@ -62,6 +62,7 @@ void vk_imgui_backend_shutdown(void);
 uint64_t vk_imgui_texture_rgba(const void *rgba, int w, int h);
 #endif
 }
+
 #ifdef __APPLE__
 #import <ImageIO/ImageIO.h>
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
@@ -294,6 +295,53 @@ static void set_job(const std::string &s, bool failed = false, const std::string
     pthread_mutex_unlock(&g_lock);
 }
 
+#if defined(__ANDROID__)
+#include <jni.h>
+#include <SDL3/SDL_system.h>
+#include <SDL3/SDL_log.h>
+
+static int g_picked_rom_fd = -1;
+static std::string g_picked_rom_name;
+static uint64_t g_picked_rom_size = 0;
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_apolinario_skyrecomp_MainActivity_nativeOnFilePicked(
+    JNIEnv *env, jclass clazz, jint reqCode, jint fd, jstring jname, jlong jsize) {
+    const char *name_str = jname ? env->GetStringUTFChars(jname, NULL) : NULL;
+    std::string name = name_str ? name_str : "ROM.nsp";
+    if (name_str) env->ReleaseStringUTFChars(jname, name_str);
+
+    if (reqCode == 0x9001) { // REQ_PICK_ROM
+        if (g_picked_rom_fd >= 0) close(g_picked_rom_fd);
+        g_picked_rom_fd = fd;
+        g_picked_rom_name = name;
+        g_picked_rom_size = (uint64_t)jsize;
+        char msg[256];
+        snprintf(msg, sizeof(msg), "ROM selecionada: %s (%.2f GB)", name.c_str(), (double)jsize / (1024.0 * 1024.0 * 1024.0));
+        set_job(msg);
+    }
+}
+
+static void android_request_pick_rom(void) {
+    JNIEnv *env = (JNIEnv *)SDL_GetAndroidJNIEnv();
+    if (!env) {
+        SDL_Log("[launcher] SDL_GetAndroidJNIEnv returned NULL");
+        return;
+    }
+    jclass act_class = env->FindClass("com/apolinario/skyrecomp/MainActivity");
+    if (!act_class) {
+        SDL_Log("[launcher] Could not find class MainActivity");
+        return;
+    }
+    jmethodID open_picker = env->GetStaticMethodID(act_class, "openFilePicker", "(I)V");
+    if (!open_picker) {
+        SDL_Log("[launcher] Could not find openFilePicker method");
+        return;
+    }
+    env->CallStaticVoidMethod(act_class, open_picker, (jint)0x9001);
+}
+#endif
+
 // Setup failures: a short headline and what to do next (also LARECOMP_LAUNCHER_SHOT=<f>:fail<1-6>, screenshots)
 enum { FAIL_NOT_FOUND = 1, FAIL_UNUSABLE, FAIL_COPY, FAIL_VERSION, FAIL_MISSING, FAIL_BUILD };
 static void set_failure(int k) {
@@ -380,6 +428,9 @@ static float extract_progress(void) {
 // says so). Only gamelib_present decides: a skygame.dll on Linux / macOS, or one for another version, can't be loaded.
 static bool build_game_code(void) {
     if (gamelib_present(g_root.c_str())) return true;
+#if defined(__ANDROID__)
+    return gamelib_present(g_root.c_str());
+#else
     int cores = SDL_GetNumLogicalCPUCores(), ram_gb = SDL_GetSystemRAM() / 1024;
     GameBuildOpts o = {build_progress, cores < ram_gb - 2 ? cores : ram_gb - 2 > 1 ? ram_gb - 2 : 1,
                        g_settings.game_build == GAME_BUILD_OPTIMIZED};
@@ -391,6 +442,7 @@ static bool build_game_code(void) {
         set_failure(FAIL_BUILD);
     }
     return ok;
+#endif
 }
 
 static void *extract_thread(void *) {
@@ -406,6 +458,32 @@ static void *extract_thread(void *) {
         g_play_requested = true;
         goto done;
     }
+
+#if defined(__ANDROID__)
+    if (g_picked_rom_fd >= 0 && !file_exists(g_root + "/romfs.bin")) {
+        set_job("Descriptografando e descompactando ROM (.nsp)...");
+        const char *keys_file = g_settings.keys_path[0] ? g_settings.keys_path : NULL;
+        char auto_keys[1024] = "";
+        if (!keys_file) {
+            if (file_exists(g_root + "/prod.keys")) snprintf(auto_keys, sizeof(auto_keys), "%s/prod.keys", g_root.c_str());
+            else if (file_exists(g_root + "/title.keys")) snprintf(auto_keys, sizeof(auto_keys), "%s/title.keys", g_root.c_str());
+            if (auto_keys[0]) keys_file = auto_keys;
+        }
+
+        auto nsp_prog = [](float pct, const char *msg) {
+            if (msg) set_job(msg);
+            g_build_frac = pct;
+        };
+
+        bool ext_ok = nsp_extract_fd(g_picked_rom_fd, g_root.c_str(), keys_file, nsp_prog);
+        if (!ext_ok) {
+            set_job("Falha ao descompactar ROM do Switch", true, "Verifique o espaco livre no celular (necessario ~8 GB) ou prod.keys.");
+            goto done;
+        }
+        if (!build_game_code()) goto done;
+        goto check;
+    }
+#endif
 
     if (!src.empty() || check_copied_files(g_root).empty() || check_copied_files(g_root).find("ROM package found") != std::string::npos) {
         std::string exefs, romfs, found_rom;
@@ -1686,17 +1764,21 @@ extern "C" void launcher_run(const char *root) {
 
 #if defined(__ANDROID__)
                 char nsp_detected[1024] = "";
-                bool has_rom_package = nsp_find_in_dir(rt_data_root(), nsp_detected, sizeof(nsp_detected)) ||
+                bool has_rom_package = (g_picked_rom_fd >= 0) ||
+                                       nsp_find_in_dir(rt_data_root(), nsp_detected, sizeof(nsp_detected)) ||
                                        nsp_find_in_dir(".", nsp_detected, sizeof(nsp_detected)) ||
                                        nsp_find_in_dir(g_root.c_str(), nsp_detected, sizeof(nsp_detected)) ||
                                        nsp_find_in_dir("/storage/emulated/0/Download", nsp_detected, sizeof(nsp_detected)) ||
                                        nsp_find_in_dir("/sdcard/Download", nsp_detected, sizeof(nsp_detected));
                 char src_buf[1024];
-                if (has_rom_package) {
-                    snprintf(src_buf, sizeof(src_buf), "Nintendo Switch ROM detected:\n%s\n\nClick 'Extract ROM and Play' below to extract RomFS and launch natively on Android!",
+                if (g_picked_rom_fd >= 0) {
+                    snprintf(src_buf, sizeof(src_buf), "ROM do Switch selecionada no celular:\n%s (%.2f GB)\n\nClique em 'EXTRAIR ROM E JOGAR' abaixo para descompactar os dados e iniciar o jogo nativamente!",
+                             g_picked_rom_name.c_str(), (double)g_picked_rom_size / 1e9);
+                } else if (has_rom_package) {
+                    snprintf(src_buf, sizeof(src_buf), "ROM do Switch detectada:\n%s\n\nClique em 'EXTRAIR ROM E JOGAR' abaixo para descompactar os dados e iniciar o jogo nativamente!",
                              nsp_detected);
                 } else {
-                    snprintf(src_buf, sizeof(src_buf), "Place your game ROM (.nsp / .xci) or 'romfs.bin' directly in:\n%s/\n\nSky Recomp will automatically extract and launch the game.", rt_data_root());
+                    snprintf(src_buf, sizeof(src_buf), "Toque em 'Selecionar ROM (.nsp)' para escolher o arquivo NSP no celular,\nou coloque-o na pasta Downloads.");
                 }
                 std::string src_d = src_buf;
 #else
@@ -1719,27 +1801,38 @@ extern "C" void launcher_run(const char *root) {
                 };
                 opt_begin("##files", sc);
                 if (!ready) {
-                    opt_section("1. Source Files");
+                    opt_section("1. Arquivo do Jogo (.NSP)");
                     if (busy) opt_disable_next();
+#if defined(__ANDROID__)
+                    const char *pick_val = (g_picked_rom_fd >= 0) ? "ROM Pronta" : (has_rom_package ? "Detectada" : "Selecionar...");
+                    if (opt_action("Selecionar ROM (.nsp)", pick_val, src_d.c_str(), true))
+                        android_request_pick_rom();
+                    check_left_of_value(pick_val);
+#else
                     if (opt_action("Game files folder", src_v.c_str(), src_d.c_str(), true))
                         SDL_ShowOpenFolderDialog(picked, NULL, win, NULL, false);
                     check_left_of_value(src_v);
+#endif
                     first_row();
 
-                    opt_section("2. Install & Compile");
+                    opt_section("2. Instalar e Descompactar Dados");
                     if (build_choice_shown()) {
                         if (busy) opt_disable_next();
                         if (opt_choice("Game code", &g_settings.game_build, BUILD_NAMES, 2, GAME_BUILD_FAST, BUILD_DESC))
                             settings_save();
                     }
-                    bool can_setup = (!src.empty() || check_copied_files(g_root).empty() || rom_detected);
+                    bool can_setup = (!src.empty() || check_copied_files(g_root).empty() || rom_detected
+#if defined(__ANDROID__)
+                                      || g_picked_rom_fd >= 0 || has_rom_package
+#endif
+                    );
                     if (busy || !can_setup) opt_disable_next();
-                    const char *setup_btn_label = rom_detected ? "Extract ROM & Play" : "Set up game files";
-                    if (opt_action(setup_btn_label, busy ? "Working..." : "Start", ex_d.c_str(), true)) start_setup();
+                    const char *setup_btn_label = (rom_detected || has_rom_package || g_picked_rom_fd >= 0) ? "EXTRAIR ROM E JOGAR" : "Instalar Arquivos";
+                    if (opt_action(setup_btn_label, busy ? "Extraindo..." : "Iniciar", ex_d.c_str(), true)) start_setup();
                     files_gb = -1;
                 } else {
-                    opt_section("Ready to Play");
-                    if (opt_action("Start Game", "Launch", "Launch the game now.", true)) {
+                    opt_section("Pronto para Jogar");
+                    if (opt_action("Iniciar Jogo", "JOGAR", "Iniciar o jogo nativamente agora.", true)) {
                         play = true;
                     }
                     first_row();

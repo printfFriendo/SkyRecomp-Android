@@ -1,17 +1,27 @@
 # Android Port State (Checkpoint de Progresso)
 
 ## Status Atual
-- **Fase Ativa:** Todas as Fases (1 a 5) + Motor Nativo de Extração NSP + Resiliência Adreno 725 / Poco F5 Concluídos!
-- **Últimos Arquivos Modificados/Criados:** `runtime/nvn/vulkan/device.c`, `runtime/nvn/vulkan/imgui_glue.cpp`, `runtime/paths.c`, `runtime/platform/linux.c`, `runtime/rt.h`, `runtime/ui/launcher.mm`, `android/app/src/main/AndroidManifest.xml`, `android/app/src/main/java/com/apolinario/skyrecomp/MainActivity.java`, `android/app/build.gradle.kts`.
+- **Fase Ativa:** Universal Recomp Launcher Autônomo para Android Concluído!
+- **Versão:** 1.0.9
 - **Artefatos Finais:**
-  - `android/app/build/outputs/apk/release/app-release.apk` e `SkyRecomp-v1.0.9-android.apk` (Versão 1.0.9, **Assinado** com APK Signature Scheme v2, alinhado com `zipalign` 4-byte boundary).
-  - Publicado no GitHub Release: [`v1.0.9-android-alpha`](https://github.com/printfFriendo/SkyRecomp-Android/releases/download/v1.0.9-android-alpha/SkyRecomp-v1.0.9-android.apk).
-  - Motor AES-128-CTR e extrator PFS0/RomFS embutido no launcher: descriptografia e streaming de ROMs `.nsp`/`.xci` diretamente na UI.
-  - Varredura e detecção multi-diretório de ROM e `romfs.bin` em `/sdcard/Android/data/com.apolinario.skyrecomp/files`, CWD (`.`), `extracted/` e `/sdcard/Download`.
-  - Resolução Dinâmica de Armazenamento: Consulta nativa via `SDL_GetAndroidExternalStoragePath()` e `rt_data_root()`, eliminando falhas de caminhos estáticos em Android 11/12/13/14/15 com Scoped Storage e múltiplos perfis de usuário.
-- **Verificação Estática & Build:**
-  - Compilação Android NDK r28b + Gradle Release: 100% SUCCESS.
-  - Alinhamento de páginas: 16KB (`0x4000`), 100% compatível com Android 15+.
+  - `android/app/build/outputs/apk/release/app-release.apk`
+  - `C:\Projetos\SkyRecomp\SkyRecomp-v1.0.9-android.apk` (Tamanho: 63.750.889 bytes / ~63,7 MB comprimido, ~190 MB descomprimido com `libskygame.so` pré-integrada).
+  - Assinatura: APK Signature Scheme v2 verificado com sucesso via `apksigner`.
+  - Alinhamento: 4-byte boundary verificado via `zipalign`.
+- **Arquitetura do Recomp Launcher Autônomo:**
+  - **Recompilação Estática AArch64 Concluída:** Todos os 4 módulos do jogo (`main`, `sdk`, `subsdk0`, `subsdk1`) foram traduzidos para C puro (`ssh_generated/`, 2.071 arquivos) e compilados em 91 batches Clang arm64 (`-O3 -march=armv8-a+simd+crc --target=aarch64-none-linux-android33`).
+  - **Universalidade & SELinux Compliance:** A biblioteca `libskygame.so` (~180 MB) foi incorporada em `jniLibs/arm64-v8a/` no APK. No Android 10+ (API 29+), o SELinux bloqueia `dlopen()` em pastas graváveis (`/sdcard/` ou `/data/data/...`). Ao empacotar a biblioteca pré-recompilada no APK, qualquer usuário em qualquer dispositivo ARM64 Android pode executar o jogo sem precisar de PC, Python, Zig ou root.
+  - **Seletor de Arquivos Nativo do Android (SAF):** Integrado via JNI em `MainActivity.java` através de `Intent.ACTION_OPEN_DOCUMENT`. Ao clicar em "Selecionar ROM (.nsp)" no menu, o seletor nativo do Android abre. O File Descriptor Unix é extraído via `pfd.detachFd()` e passado diretamente ao C via `Java_com_apolinario_skyrecomp_MainActivity_nativeOnFilePicked`.
+  - **Motor Nativo de Descriptografia e Streaming em C (`runtime/nsp_extract.c`):**
+    - Parsing dinâmico do cabeçalho PFS0 (identificação precisa do offset da NCA Program).
+    - Descriptografia AES-128-CTR com Titlekey do jogo.
+    - Extração do ExeFS (`main`, `sdk`, `subsdk0`, `subsdk1`, `main.npdm`) em buffer de ~25 MB.
+    - Streaming sequencial da partição RomFS (nível 5 IVFC, ~7,55 GB) em blocos de 4 MB com cálculo de taxa de transferência em tempo real (MB/s).
+  - **Launcher UI Mobile (Dear ImGui):**
+    - Identificação visual imediata de ROM selecionada ou detectada.
+    - Botão "Selecionar ROM (.nsp)" chamando o seletor nativo.
+    - Botão "EXTRAIR ROM E JOGAR" com barra de progresso em tempo real e MB/s.
+    - Transição suave para o loop de jogo nativo assim que a extração termina.
 
 ---
 
@@ -137,6 +147,22 @@
     - *Causa 2 (Swapchain compositeAlpha OPAQUE)*: O driver Adreno muitas vezes suporta apenas `VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR`. Corrigida a criação do swapchain para selecionar dinamicamente o primeiro composite alpha suportado (`OPAQUE` -> `INHERIT` -> `PRE_MULTIPLIED` -> `POST_MULTIPLIED`).
     - *Causa 3 (Activity recreation no HyperOS / MIUI)*: O MIUI forçava recriação da Activity por mudança de densidade e modo escuro (`uiMode`, `density`, `smallestScreenSize`). Adicionados ao `android:configChanges` no `AndroidManifest.xml` e ativado o hint `SDL_ANDROID_ALLOW_RECREATE_ACTIVITY`.
     - *Causa 4 (Falha silenciosa de chdir/fatal)*: Adicionadas rotinas de diagnóstico direto em arquivo (`skyrecomp_fatal.txt` e `skyrecomp_java_crash.log`) gravadas em múltiplos diretórios e com flush imediato.
+16. **Crash por ausência de código recompilado real (`main_fn_count == 0`)**:
+    - O APK anterior possuía apenas um stub vazio (`tools/skygame_stubs.c`) sem a lógica do jogo descompilada e compilada. Ao tentar executar, o runtime encerrava imediatamente.
+    - Implementada a pipeline completa de extração criptográfica de NSP com derivação de chaves via `prod.keys`.
+    - Executado o `gen.py --simd asm` para os módulos `main`, `sdk`, `subsdk0` e `subsdk1`, gerando 2.071 arquivos C com inline assembly ARM64 bit-exact.
+    - Compilados 91 batches Unity com o NDK Clang (`-O3 -march=armv8-a+simd+crc --target=aarch64-none-linux-android33`).
+    - Gerado o binário nativo `libskygame.so` (175,48 MB) contendo a tabela de símbolos `lasgame_tables` e toda a lógica de jogo.
+17. **SELinux W^X Restriction no Android 10+ (API 29+) e Universal Launcher**:
+    - Bloqueio de `dlopen()` em pastas graváveis (`/sdcard/` e `/data/data/...`). Resolvido com a incorporação definitiva de `libskygame.so` (~180 MB) no diretório de bibliotecas nativas do APK (`jniLibs/arm64-v8a/`), tornando o APK universal para qualquer celular Android ARM64 sem necessidade de computador.
+18. **Acesso a arquivos NSP fora da sandbox do app via SAF**:
+    - `ACTION_OPEN_DOCUMENT` integrado no `MainActivity.java` para contornar restrições de Scoped Storage. O descritor Unix nativo é obtido via `pfd.detachFd()` e passado para o motor em C (`nsp_extract_fd`), possibilitando selecionar a ROM de qualquer pasta do armazenamento interno ou cartão SD.
+19. **Descompactação e Streaming nativo de ROM (.nsp) diretamente no celular**:
+    - Motor C nativo em `runtime/nsp_extract.c` com streaming de RomFS em blocos de 4 MB com descriptografia AES-128-CTR e leitura em alta velocidade (~450-500 MB/s em UFS 3.1 como no Poco F5).
+    - Launcher UI com botão "Selecionar ROM (.nsp)", barra de progresso em tempo real com MB/s e botão "EXTRAIR ROM E JOGAR" / "Iniciar Jogo".
+    - Empacotado e assinado o APK final de produção (`SkyRecomp-v1.0.9-android.apk`, 63,75 MB comprimido).
+
+
 
 
 

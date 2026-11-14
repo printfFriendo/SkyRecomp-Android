@@ -229,10 +229,10 @@ static bool parse_hex_key(const char *str, uint8_t out[16]) {
 }
 
 static bool find_titlekey(const char *keys_path, uint8_t out[16]) {
-    // Default known titlekey for Zelda: Skyward Sword HD v1.0.0 (TitleID: 01002da013484000)
+    // Default known application key for Zelda: Skyward Sword HD (TitleID: 01002da013484000)
     static const uint8_t s_default_key[16] = {
-        0x00, 0x3b, 0x3f, 0x5c, 0x72, 0x6a, 0xbb, 0x10,
-        0xac, 0xc1, 0x21, 0x0c, 0xd2, 0xb9, 0xb5, 0x46
+        0xfd, 0x88, 0xa7, 0x5a, 0xd7, 0xb4, 0xd1, 0x95,
+        0xd9, 0x19, 0xee, 0x49, 0x6c, 0x76, 0x27, 0x8b
     };
 
     if (keys_path && *keys_path) {
@@ -240,7 +240,7 @@ static bool find_titlekey(const char *keys_path, uint8_t out[16]) {
         if (f) {
             char line[512];
             while (fgets(line, sizeof(line), f)) {
-                if (strstr(line, "01002da013484000") || strstr(line, "titlekey")) {
+                if (strstr(line, "01002da013484000") || strstr(line, "titlekey") || strstr(line, "application_0a")) {
                     char *eq = strchr(line, '=');
                     if (eq && parse_hex_key(eq + 1, out)) {
                         fclose(f);
@@ -277,9 +277,9 @@ static void ensure_dir(const char *path) {
 #endif
 }
 
-bool nsp_extract(const char *nsp_path, const char *out_dir, const char *keys_path,
-                 void (*progress)(float pct, const char *msg)) {
-    if (!nsp_path || !out_dir) return false;
+static bool nsp_extract_stream(FILE *f_nsp, const char *out_dir, const char *keys_path,
+                              void (*progress)(float pct, const char *msg)) {
+    if (!f_nsp || !out_dir) return false;
 
     char romfs_out[1024], exefs_dir[1024];
     snprintf(romfs_out, sizeof(romfs_out), "%s/romfs.bin", out_dir);
@@ -297,14 +297,24 @@ bool nsp_extract(const char *nsp_path, const char *out_dir, const char *keys_pat
         return true;
     }
 
-    FILE *f_nsp = fopen(nsp_path, "rb");
-    if (!f_nsp) {
-        LOG("[nsp] Failed to open ROM: %s\n", nsp_path);
-        return false;
-    }
-
     ensure_dir(out_dir);
     ensure_dir(exefs_dir);
+
+    // Parse NSP PFS0 header to locate Program NCA offset dynamically
+    uint8_t pfs0_hdr[16];
+    if (fseek64(f_nsp, 0, SEEK_SET) != 0 || fread(pfs0_hdr, 1, 16, f_nsp) != 16) {
+        LOG("[nsp] Failed to read NSP header\n");
+        return false;
+    }
+    if (memcmp(pfs0_hdr, "PFS0", 4) != 0) {
+        LOG("[nsp] Invalid NSP header: magic is not PFS0\n");
+        return false;
+    }
+    uint32_t num_files = *(uint32_t *)(pfs0_hdr + 4);
+    uint32_t str_sz = *(uint32_t *)(pfs0_hdr + 8);
+    uint64_t nca_offset = 16 + (uint64_t)num_files * 24 + (uint64_t)str_sz;
+    LOG("[nsp] PFS0 num_files=%u, str_sz=%u -> Program NCA offset: 0x%llx\n",
+        num_files, str_sz, (unsigned long long)nca_offset);
 
     uint8_t titlekey[16];
     find_titlekey(keys_path, titlekey);
@@ -316,8 +326,8 @@ bool nsp_extract(const char *nsp_path, const char *out_dir, const char *keys_pat
     // 1. Decrypt and Extract ExeFS (main, sdk, subsdk0, subsdk1)
     // ========================================================================
     if (!has_main) {
-        if (progress) progress(0.01f, "Decrypting and extracting ExeFS binaries...");
-        uint64_t sec0_abs = 0x89c0 + 0x0001c3088000ull;
+        if (progress) progress(0.01f, "Descompactando binarios do ExeFS...");
+        uint64_t sec0_abs = nca_offset + 0x1c3088000ull;
         uint32_t total_exefs_sz = 0x1914000; // ~25 MB
 
         if (fseek64(f_nsp, (int64_t)sec0_abs, SEEK_SET) == 0) {
@@ -327,19 +337,19 @@ bool nsp_extract(const char *nsp_path, const char *out_dir, const char *keys_pat
             if (enc_buf && dec_buf && fread(enc_buf, 1, total_exefs_sz, f_nsp) == total_exefs_sz) {
                 uint8_t iv[16] = {0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,
                                   0x00, 0x00, 0x00, 0x00, 0x1c, 0x30, 0x88, 0x00};
-                uint64_t sec0_blk_off = 0x0001c3088000ull >> 4; // 0x1c308800ull
+                uint64_t sec0_blk_off = 0x0001c3088000ull >> 4;
                 aes128_ctr_process(&aes, iv, enc_buf, dec_buf, total_exefs_sz, sec0_blk_off);
 
                 // PFS0 header is at offset 0x8000
                 uint8_t *pfs0 = dec_buf + 0x8000;
                 if (memcmp(pfs0, "PFS0", 4) == 0) {
-                    uint32_t num_files = *(uint32_t *)(pfs0 + 4);
-                    uint32_t str_sz = *(uint32_t *)(pfs0 + 8);
+                    uint32_t p_num = *(uint32_t *)(pfs0 + 4);
+                    uint32_t p_str_sz = *(uint32_t *)(pfs0 + 8);
                     uint8_t *entries = pfs0 + 16;
-                    const char *str_tab = (const char *)(entries + num_files * 24);
-                    const uint8_t *data_base = (const uint8_t *)(str_tab + str_sz);
+                    const char *str_tab = (const char *)(entries + p_num * 24);
+                    const uint8_t *data_base = (const uint8_t *)(str_tab + p_str_sz);
 
-                    for (uint32_t i = 0; i < num_files; i++) {
+                    for (uint32_t i = 0; i < p_num; i++) {
                         uint64_t f_off = *(uint64_t *)(entries + i * 24 + 0);
                         uint64_t f_sz = *(uint64_t *)(entries + i * 24 + 8);
                         uint32_t n_off = *(uint32_t *)(entries + i * 24 + 16);
@@ -351,7 +361,7 @@ bool nsp_extract(const char *nsp_path, const char *out_dir, const char *keys_pat
                         if (f_out) {
                             fwrite(data_base + f_off, 1, (size_t)f_sz, f_out);
                             fclose(f_out);
-                            LOG("[nsp] Extracted ExeFS: %s (%llu KB)\n", fname, f_sz >> 10);
+                            LOG("[nsp] Extracted ExeFS: %s (%llu KB)\n", fname, (unsigned long long)(f_sz >> 10));
                         }
                     }
                 } else {
@@ -369,8 +379,9 @@ bool nsp_extract(const char *nsp_path, const char *out_dir, const char *keys_pat
     if (!has_romfs) {
         uint64_t sec1_start = 0x1c000ull;
         uint64_t lvl5_rel_off = 0xe28000ull;
-        uint64_t abs_lvl5_off = sec1_start + lvl5_rel_off;
-        uint64_t lvl5_size = 0x1c2242bdcull; // 7,552,216,028 bytes
+        uint64_t abs_lvl5_off = sec1_start + lvl5_rel_off; // 0xe44000
+        uint64_t file_lvl5_off = nca_offset + abs_lvl5_off;
+        uint64_t lvl5_size = 0x1c2242bdcull; // 7,552,216,028 bytes (~7.55 GB)
 
         uint8_t sec_ctr[16] = {
             0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00,
@@ -380,7 +391,6 @@ bool nsp_extract(const char *nsp_path, const char *out_dir, const char *keys_pat
         FILE *f_romfs = fopen(romfs_out, "wb");
         if (!f_romfs) {
             LOG("[nsp] Cannot write romfs.bin to %s\n", romfs_out);
-            fclose(f_nsp);
             return false;
         }
 
@@ -392,31 +402,35 @@ bool nsp_extract(const char *nsp_path, const char *out_dir, const char *keys_pat
             free(enc_chunk);
             free(dec_chunk);
             fclose(f_romfs);
-            fclose(f_nsp);
+            return false;
+        }
+
+        if (fseek64(f_nsp, (int64_t)file_lvl5_off, SEEK_SET) != 0) {
+            LOG("[nsp] Cannot seek to RomFS offset 0x%llx\n", (unsigned long long)file_lvl5_off);
+            free(enc_chunk);
+            free(dec_chunk);
+            fclose(f_romfs);
             return false;
         }
 
         uint64_t bytes_left = lvl5_size;
         uint64_t cur_pos = 0;
         time_t last_update = 0;
+        time_t t_start = time(NULL);
 
         while (bytes_left > 0) {
             size_t to_read = (bytes_left < CHUNK_SIZE) ? (size_t)bytes_left : CHUNK_SIZE;
-            uint64_t cur_abs = abs_lvl5_off + cur_pos;
-            uint64_t aligned_off = cur_abs & ~0xFull;
-            size_t skip = (size_t)(cur_abs & 0xFull);
-            size_t read_len = to_read + skip;
-
-            if (fseek64(f_nsp, (int64_t)(0x89c0 + aligned_off), SEEK_SET) != 0 ||
-                fread(enc_chunk, 1, read_len, f_nsp) != read_len) {
-                LOG("[nsp] Read error during RomFS extraction at offset %llu\n", cur_abs);
+            size_t n_read = fread(enc_chunk, 1, to_read, f_nsp);
+            if (n_read != to_read) {
+                LOG("[nsp] Read error during RomFS extraction at offset %llu (read %zu of %zu)\n",
+                    (unsigned long long)cur_pos, n_read, to_read);
                 break;
             }
 
-            uint64_t block_idx = aligned_off >> 4;
-            aes128_ctr_process(&aes, sec_ctr, enc_chunk, dec_chunk, read_len, block_idx);
+            uint64_t block_idx = (abs_lvl5_off + cur_pos) >> 4;
+            aes128_ctr_process(&aes, sec_ctr, enc_chunk, dec_chunk, to_read, block_idx);
 
-            fwrite(dec_chunk + skip, 1, to_read, f_romfs);
+            fwrite(dec_chunk, 1, to_read, f_romfs);
 
             bytes_left -= to_read;
             cur_pos += to_read;
@@ -425,9 +439,13 @@ bool nsp_extract(const char *nsp_path, const char *out_dir, const char *keys_pat
             if (progress && (now != last_update || bytes_left == 0)) {
                 last_update = now;
                 float pct = (float)cur_pos / (float)lvl5_size;
-                char msg[128];
-                snprintf(msg, sizeof(msg), "Extracting RomFS: %llu / %llu MB (%.0f%%)",
-                         cur_pos >> 20, lvl5_size >> 20, pct * 100.0f);
+                double elapsed = (now > t_start) ? (double)(now - t_start) : 0.001;
+                double speed_mb = (double)cur_pos / (1024.0 * 1024.0 * elapsed);
+                char msg[256];
+                snprintf(msg, sizeof(msg), "Descompactando RomFS: %.2f / %.2f GB (%.0f%%) - %.0f MB/s",
+                         (double)cur_pos / (1024.0 * 1024.0 * 1024.0),
+                         (double)lvl5_size / (1024.0 * 1024.0 * 1024.0),
+                         pct * 100.0f, speed_mb);
                 progress(pct, msg);
             }
         }
@@ -435,9 +453,40 @@ bool nsp_extract(const char *nsp_path, const char *out_dir, const char *keys_pat
         free(enc_chunk);
         free(dec_chunk);
         fclose(f_romfs);
+        if (bytes_left > 0) {
+            LOG("[nsp] Extraction incomplete (%llu bytes remaining)\n", (unsigned long long)bytes_left);
+            return false;
+        }
     }
 
-    fclose(f_nsp);
-    if (progress) progress(1.0f, "Extraction complete!");
+    if (progress) progress(1.0f, "Extracao concluida com sucesso!");
     return true;
+}
+
+bool nsp_extract_fd(int fd, const char *out_dir, const char *keys_path,
+                    void (*progress)(float pct, const char *msg)) {
+    if (fd < 0 || !out_dir) return false;
+    int dup_fd = dup(fd);
+    if (dup_fd < 0) return false;
+    FILE *f_nsp = fdopen(dup_fd, "rb");
+    if (!f_nsp) {
+        close(dup_fd);
+        return false;
+    }
+    bool ok = nsp_extract_stream(f_nsp, out_dir, keys_path, progress);
+    fclose(f_nsp);
+    return ok;
+}
+
+bool nsp_extract(const char *nsp_path, const char *out_dir, const char *keys_path,
+                 void (*progress)(float pct, const char *msg)) {
+    if (!nsp_path || !out_dir) return false;
+    FILE *f_nsp = fopen(nsp_path, "rb");
+    if (!f_nsp) {
+        LOG("[nsp] Failed to open ROM: %s\n", nsp_path);
+        return false;
+    }
+    bool ok = nsp_extract_stream(f_nsp, out_dir, keys_path, progress);
+    fclose(f_nsp);
+    return ok;
 }

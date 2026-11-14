@@ -1,9 +1,14 @@
 package com.apolinario.skyrecomp;
 
 import android.content.Context;
+import android.content.Intent;
+import android.database.Cursor;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Message;
+import android.os.ParcelFileDescriptor;
+import android.provider.OpenableColumns;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.os.VibratorManager;
@@ -19,9 +24,72 @@ import org.libsdl.app.SDLActivity;
 public class MainActivity extends SDLActivity {
     private static final String TAG = "SkyRecomp";
     public static final int CMD_HAPTIC_CLICK = 0x8001;
+    public static final int REQ_PICK_ROM = 0x9001;
+    public static final int REQ_PICK_KEYS = 0x9002;
+
+    private static MainActivity sInstance = null;
+
+    public static native void nativeOnFilePicked(int reqCode, int fd, String filename, long size);
+
+    public static void openFilePicker(final int reqCode) {
+        if (sInstance == null) {
+            Log.e(TAG, "Cannot open file picker: MainActivity instance is null");
+            return;
+        }
+        sInstance.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                    intent.addCategory(Intent.CATEGORY_OPENABLE);
+                    intent.setType("*/*");
+                    sInstance.startActivityForResult(intent, reqCode);
+                } catch (Exception e) {
+                    Log.e(TAG, "Failed to launch ACTION_OPEN_DOCUMENT intent: " + e.getMessage());
+                }
+            }
+        });
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if ((requestCode == REQ_PICK_ROM || requestCode == REQ_PICK_KEYS) && resultCode == RESULT_OK && data != null && data.getData() != null) {
+            Uri uri = data.getData();
+            try {
+                getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            } catch (Exception ignored) {}
+
+            String displayName = (requestCode == REQ_PICK_ROM) ? "game.nsp" : "prod.keys";
+            long fileSize = 0;
+            try (Cursor cursor = getContentResolver().query(uri, null, null, null, null)) {
+                if (cursor != null && cursor.moveToFirst()) {
+                    int nameIdx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                    int sizeIdx = cursor.getColumnIndex(OpenableColumns.SIZE);
+                    if (nameIdx != -1) displayName = cursor.getString(nameIdx);
+                    if (sizeIdx != -1) fileSize = cursor.getLong(sizeIdx);
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "Could not resolve file metadata: " + e.getMessage());
+            }
+
+            try {
+                ParcelFileDescriptor pfd = getContentResolver().openFileDescriptor(uri, "r");
+                if (pfd != null) {
+                    int fd = pfd.detachFd();
+                    Log.i(TAG, "User selected file: " + displayName + " (" + fileSize + " bytes), fd=" + fd);
+                    nativeOnFilePicked(requestCode, fd, displayName, fileSize);
+                    return;
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to open ParcelFileDescriptor for " + uri + ": " + e.getMessage());
+            }
+        }
+        super.onActivityResult(requestCode, resultCode, data);
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        sInstance = this;
         final Thread.UncaughtExceptionHandler defaultHandler = Thread.getDefaultUncaughtExceptionHandler();
         Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
             @Override

@@ -49,6 +49,7 @@ android/.gradle/
 android/build/
 android/app/build/
 android/app/.cxx/
+android/app/src/main/jniLibs/arm64-v8a/libskygame.so
 android/local.properties
 android/*.jks
 android/*.keystore

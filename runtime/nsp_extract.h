@@ -18,6 +18,10 @@ bool nsp_find_in_dir(const char *dir, char *out_path, size_t out_path_sz);
 bool nsp_extract(const char *nsp_path, const char *out_dir, const char *keys_path,
                  void (*progress)(float pct, const char *msg));
 
+// Extract directly from an open POSIX file descriptor (from Android ContentResolver)
+bool nsp_extract_fd(int fd, const char *out_dir, const char *keys_path,
+                    void (*progress)(float pct, const char *msg));
+
 #ifdef __cplusplus
 }
 #endif

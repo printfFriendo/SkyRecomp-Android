@@ -165,10 +165,10 @@ def main():
             gen_script = os.path.abspath("tools/gen.py")
             hle_file = os.path.abspath("runtime/hle/hle_symbols.txt")
             mod_configs = {
-                "main": ("0x7100004000", []),
-                "sdk": ("0x712E74B000", ["--hle", hle_file]),
-                "subsdk0": ("0x712D037000", []),
-                "subsdk1": ("0x712D9FF000", []),
+                "main": ("0x7100004000", ["--simd", "asm"]),
+                "sdk": ("0x712E74B000", ["--hle", hle_file, "--simd", "asm"]),
+                "subsdk0": ("0x712D037000", ["--simd", "asm"]),
+                "subsdk1": ("0x712D9FF000", ["--simd", "asm"]),
             }
             def run_gen(mod):
                 base_addr, extra = mod_configs[mod]
@@ -321,7 +321,7 @@ def main():
     if "--apk" in sys.argv or "-a" in sys.argv:
         print("\nRebuilding release APK with Gradle...")
         gradlew = os.path.abspath("android/gradlew.bat" if sys.platform == "win32" else "android/gradlew")
-        subprocess.run([gradlew, "assembleRelease"], cwd=os.path.abspath("android"), check=True)
+        subprocess.run([gradlew, "assembleRelease"], cwd=os.path.abspath("android"), check=True, shell=(sys.platform == "win32"))
         apk_dest = os.path.abspath("android/app/build/outputs/apk/release/app-release.apk")
         print(f"[DONE] Final APK ready: {apk_dest}")
 
