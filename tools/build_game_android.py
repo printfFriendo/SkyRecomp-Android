@@ -284,6 +284,7 @@ def main():
         for _, obj in sources:
             rf.write(f'"{obj.replace(chr(92), "/")}"\n')
 
+    main_so_dir = os.path.abspath("build-android")
     link_cmd = [
         clang,
         "--target=aarch64-none-linux-android33",
@@ -291,6 +292,8 @@ def main():
         "-fuse-ld=lld",
         "-Wl,-soname,libskygame.so",
         "-Wl,--gc-sections",
+        f"-L{main_so_dir}",
+        "-lmain",
         "-lm",
         "-ldl",
         "-lc",

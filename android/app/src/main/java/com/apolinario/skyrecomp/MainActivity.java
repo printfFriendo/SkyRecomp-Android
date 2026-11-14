@@ -148,6 +148,19 @@ public class MainActivity extends SDLActivity {
         } catch (Exception e) {
             Log.e(TAG, "Failed to initialize external files directory: " + e.getMessage());
         }
+        try {
+            System.loadLibrary("c++_shared");
+            System.loadLibrary("SDL3");
+            System.loadLibrary("main");
+            try {
+                System.loadLibrary("skygame");
+                Log.i(TAG, "libskygame.so loaded into process address space");
+            } catch (Throwable t) {
+                Log.w(TAG, "libskygame.so dynamic load: " + t.getMessage());
+            }
+        } catch (Throwable t) {
+            Log.e(TAG, "Core library pre-load notice: " + t.getMessage());
+        }
         super.onCreate(savedInstanceState);
     }
 
@@ -248,7 +261,6 @@ public class MainActivity extends SDLActivity {
         return new String[] {
             "c++_shared",
             "SDL3",
-            "skygame",
             "main"
         };
     }
