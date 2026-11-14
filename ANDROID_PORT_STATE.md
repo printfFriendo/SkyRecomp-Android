@@ -157,10 +157,12 @@
     - Bloqueio de `dlopen()` em pastas graváveis (`/sdcard/` e `/data/data/...`). Resolvido com a incorporação definitiva de `libskygame.so` (~180 MB) no diretório de bibliotecas nativas do APK (`jniLibs/arm64-v8a/`), tornando o APK universal para qualquer celular Android ARM64 sem necessidade de computador.
 18. **Acesso a arquivos NSP fora da sandbox do app via SAF**:
     - `ACTION_OPEN_DOCUMENT` integrado no `MainActivity.java` para contornar restrições de Scoped Storage. O descritor Unix nativo é obtido via `pfd.detachFd()` e passado para o motor em C (`nsp_extract_fd`), possibilitando selecionar a ROM de qualquer pasta do armazenamento interno ou cartão SD.
-19. **Descompactação e Streaming nativo de ROM (.nsp) diretamente no celular**:
-    - Motor C nativo em `runtime/nsp_extract.c` com streaming de RomFS em blocos de 4 MB com descriptografia AES-128-CTR e leitura em alta velocidade (~450-500 MB/s em UFS 3.1 como no Poco F5).
-    - Launcher UI com botão "Selecionar ROM (.nsp)", barra de progresso em tempo real com MB/s e botão "EXTRAIR ROM E JOGAR" / "Iniciar Jogo".
-    - Empacotado e assinado o APK final de produção (`SkyRecomp-v1.0.9-android.apk`, 63,75 MB comprimido).
+20. **Modal "SDL Error" (An error occurred while trying to start the application)**:
+    - *Causa*: `MainActivity.java` listava `"skygame"` em `getLibraries()`, carregando `libskygame.so` antes de `libmain.so`. Como `libskygame.so` continha 26 símbolos dinâmicos importados de `libmain.so` (`rt_dispatch`, `rt_svc`, etc.) e não declarava `DT_NEEDED libmain.so`, o dynamic linker Bionic do Android lançava `UnsatisfiedLinkError`, fazendo `SDLActivity` abortar no boot.
+    - *Solução 1*: Adicionado `-Lbuild-android -lmain` na linkagem de `libskygame.so` para registrar `DT_NEEDED [libmain.so]` no cabeçalho ELF.
+    - *Solução 2*: Removido `"skygame"` de `getLibraries()` no `MainActivity.java` para que o SDL inicialize apenas as bibliotecas de engine (`c++_shared`, `SDL3`, `main`), deixando o carregamento de `libskygame.so` a cargo do runtime C em `gamelib.c` com tratamento seguro de erros.
+    - *Verificação*: Recompilado e empacotado o APK `SkyRecomp-v1.0.9-android.apk` (63.749.689 bytes), assinado com v2 scheme e publicado no GitHub Releases.
+
 
 
 
